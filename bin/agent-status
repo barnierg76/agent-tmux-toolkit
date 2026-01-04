@@ -160,4 +160,10 @@ if [ "$WATCH_MODE" = true ]; then
     done
 else
     show_status
+    # If running in a popup/interactive context, wait for user input
+    if [ -t 0 ]; then
+        echo ""
+        echo -e "${DIM}Press any key to exit...${NC}"
+        read -n 1 -s </dev/tty
+    fi
 fi

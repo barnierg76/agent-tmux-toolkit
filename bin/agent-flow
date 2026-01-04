@@ -1,0 +1,286 @@
+#!/bin/bash
+# agent-flow - Orchestrate compound engineering workflow
+# Usage: agent-flow (interactive menu)
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+DIM='\033[2m'
+NC='\033[0m'
+
+# Get session name from environment or detect from tmux
+get_session_name() {
+    if [ -n "$AGENT_SESSION" ]; then
+        echo "$AGENT_SESSION"
+    elif tmux display-message -p '#{session_name}' 2>/dev/null; then
+        :
+    else
+        echo "agents"
+    fi
+}
+
+SESSION_NAME=$(get_session_name)
+
+show_usage() {
+    cat << 'EOF'
+agent-flow - Compound engineering workflow orchestrator
+
+USAGE:
+    agent-flow              Interactive menu
+    agent-flow <command>    Direct command
+
+COMMANDS:
+    start       Start new feature (focus PLAN, send /workflows:plan)
+    work        Transition to WORK pane with /workflows:work
+    review      Transition to REVIEW pane with /workflows:review
+    compound    Run /workflows:compound to document learnings
+    status      Show workflow state and pane status
+    reset       Clear workflow state
+
+EXAMPLES:
+    agent-flow              # Open interactive menu
+    agent-flow start        # Start planning a new feature
+    agent-flow work         # Transition from plan to work
+EOF
+}
+
+# Check if fzf is available
+check_fzf() {
+    if ! command -v fzf &> /dev/null; then
+        echo -e "${RED}Error: fzf is required${NC}"
+        echo "Install with: brew install fzf"
+        exit 1
+    fi
+}
+
+# Get pane ID by role (PLAN, WORK, REVIEW)
+get_pane_by_role() {
+    local role="$1"
+    tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}|#{@role}" 2>/dev/null | \
+        awk -F'|' -v role="$role" '$2 == role {print $1; exit}'
+}
+
+# Get current pane info
+get_current_pane() {
+    tmux display-message -p '#{pane_id}|#{@role}|#{pane_title}' 2>/dev/null
+}
+
+# Focus on a pane by role
+focus_pane() {
+    local role="$1"
+    local pane_id=$(get_pane_by_role "$role")
+
+    if [ -n "$pane_id" ]; then
+        tmux select-pane -t "$pane_id"
+        return 0
+    fi
+
+    # Fallback: try by index
+    case "$role" in
+        PLAN)   tmux select-pane -t "$SESSION_NAME:0.0" 2>/dev/null ;;
+        WORK)   tmux select-pane -t "$SESSION_NAME:0.1" 2>/dev/null ;;
+        REVIEW) tmux select-pane -t "$SESSION_NAME:0.2" 2>/dev/null ;;
+    esac
+}
+
+# Send keys to a pane by role
+send_to_pane() {
+    local role="$1"
+    shift
+    local pane_id=$(get_pane_by_role "$role")
+
+    if [ -n "$pane_id" ]; then
+        tmux send-keys -t "$pane_id" "$@"
+    else
+        echo -e "${YELLOW}Warning: Could not find $role pane${NC}"
+    fi
+}
+
+# Start a new feature workflow
+cmd_start() {
+    echo -e "${BLUE}Starting feature workflow...${NC}"
+
+    # Focus PLAN pane
+    focus_pane "PLAN"
+
+    # Send the plan command (without Enter so user can add description)
+    send_to_pane "PLAN" "/compound-engineering:workflows:plan "
+
+    # Update state
+    agent-flow-state set PLANNING 2>/dev/null || true
+
+    echo -e "${GREEN}Switched to PLAN pane${NC}"
+    echo -e "${CYAN}Enter your feature description and press Enter${NC}"
+}
+
+# Transition from PLAN to WORK
+cmd_work() {
+    echo -e "${BLUE}Transitioning to WORK...${NC}"
+
+    # Focus WORK pane
+    focus_pane "WORK"
+
+    # Send the work command
+    send_to_pane "WORK" "/compound-engineering:workflows:work "
+
+    # Update state
+    agent-flow-state set WORKING 2>/dev/null || true
+
+    echo -e "${GREEN}Switched to WORK pane${NC}"
+    echo -e "${CYAN}Provide the plan file path and press Enter${NC}"
+}
+
+# Transition from WORK to REVIEW
+cmd_review() {
+    echo -e "${BLUE}Transitioning to REVIEW...${NC}"
+
+    # Focus REVIEW pane
+    focus_pane "REVIEW"
+
+    # Send the review command
+    send_to_pane "REVIEW" "/compound-engineering:workflows:review "
+
+    # Update state
+    agent-flow-state set REVIEWING 2>/dev/null || true
+
+    echo -e "${GREEN}Switched to REVIEW pane${NC}"
+}
+
+# Run compound documentation
+cmd_compound() {
+    echo -e "${BLUE}Starting compound documentation...${NC}"
+
+    # Get current pane and send command there
+    tmux send-keys "/compound-engineering:workflows:compound "
+
+    # Update state
+    agent-flow-state set COMPOUND 2>/dev/null || true
+
+    echo -e "${GREEN}Run /workflows:compound to document learnings${NC}"
+}
+
+# Show workflow status
+cmd_status() {
+    echo -e "${BLUE}WORKFLOW STATUS${NC}"
+    echo ""
+
+    # Current state
+    local state=$(agent-flow-state get 2>/dev/null || echo "IDLE")
+    local suggestion=$(agent-flow-state suggest 2>/dev/null || echo "")
+
+    echo -e "Phase: ${CYAN}$state${NC}"
+    echo -e "Next:  ${YELLOW}$suggestion${NC}"
+    echo ""
+
+    # Pane status
+    echo -e "${BLUE}PANES${NC}"
+    tmux list-panes -t "$SESSION_NAME" -F "  #{pane_index}: #{@role} - #{pane_title}" 2>/dev/null || \
+        echo "  (no panes found)"
+    echo ""
+
+    # Show state progression
+    echo -e "${DIM}Workflow: IDLE -> PLANNING -> WORKING -> REVIEWING -> COMPOUND -> DONE${NC}"
+}
+
+# Reset workflow
+cmd_reset() {
+    agent-flow-state clear 2>/dev/null || true
+    echo -e "${GREEN}Workflow state reset to IDLE${NC}"
+}
+
+# Interactive menu
+show_menu() {
+    local state=$(agent-flow-state get 2>/dev/null || echo "IDLE")
+    local suggestion=$(agent-flow-state suggest 2>/dev/null || echo "Start a feature")
+
+    # Build menu based on current state
+    cat << EOF
+COMPOUND WORKFLOW [$state]
+start|Start Feature|Focus PLAN pane, run /workflows:plan
+work|Plan -> Work|Focus WORK pane, run /workflows:work
+review|Work -> Review|Focus REVIEW pane, run /workflows:review
+compound|Compound|Document learnings with /workflows:compound
+---
+handoff|Handoff Context|Transfer context between panes
+status|Status|Show workflow state
+reset|Reset|Clear workflow state
+EOF
+}
+
+interactive_menu() {
+    check_fzf
+
+    local state=$(agent-flow-state get 2>/dev/null || echo "IDLE")
+
+    local choice=$(show_menu | grep -v '^---$' | fzf \
+        --height=60% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt="› " \
+        --header="Compound Engineering Flow [$state]" \
+        --delimiter='|' \
+        --with-nth=2,3 \
+        --preview-window=hidden)
+
+    [ -z "$choice" ] && exit 0
+
+    local cmd=$(echo "$choice" | cut -d'|' -f1)
+
+    case "$cmd" in
+        start)    cmd_start ;;
+        work)     cmd_work ;;
+        review)   cmd_review ;;
+        compound) cmd_compound ;;
+        handoff)  exec agent-handoff ;;
+        status)   cmd_status; echo ""; read -p "Press Enter to continue..." ;;
+        reset)    cmd_reset ;;
+    esac
+}
+
+# Main
+main() {
+    # Check session exists
+    if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+        echo -e "${RED}Error: Session '$SESSION_NAME' not found${NC}"
+        echo "Start with: agent-session"
+        exit 1
+    fi
+
+    case "${1:-}" in
+        --help|-h)
+            show_usage
+            exit 0
+            ;;
+        start)
+            cmd_start
+            ;;
+        work)
+            cmd_work
+            ;;
+        review)
+            cmd_review
+            ;;
+        compound)
+            cmd_compound
+            ;;
+        status)
+            cmd_status
+            ;;
+        reset)
+            cmd_reset
+            ;;
+        "")
+            interactive_menu
+            ;;
+        *)
+            echo -e "${RED}Unknown command: $1${NC}"
+            show_usage
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

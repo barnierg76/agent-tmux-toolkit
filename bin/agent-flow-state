@@ -1,0 +1,137 @@
+#!/bin/bash
+# agent-flow-state - Track and suggest workflow state
+# Usage: agent-flow-state [get|set|suggest|clear] [state]
+set -e
+
+STATE_DIR="${HOME}/.cache/agent-tmux"
+mkdir -p "$STATE_DIR"
+
+# Get session name from environment or detect from tmux
+get_session_name() {
+    if [ -n "$AGENT_SESSION" ]; then
+        echo "$AGENT_SESSION"
+    elif tmux display-message -p '#{session_name}' 2>/dev/null; then
+        :
+    else
+        echo "agents"
+    fi
+}
+
+SESSION_NAME=$(get_session_name)
+STATE_FILE="$STATE_DIR/${SESSION_NAME}.state"
+
+show_usage() {
+    cat << 'EOF'
+agent-flow-state - Track compound engineering workflow state
+
+USAGE:
+    agent-flow-state <command> [state]
+
+COMMANDS:
+    get         Get current workflow state
+    set <state> Set workflow state (IDLE|PLANNING|WORKING|REVIEWING|COMPOUND|DONE)
+    suggest     Get suggestion for next step based on current state
+    clear       Clear workflow state (reset to IDLE)
+
+STATES:
+    IDLE      - No active workflow
+    PLANNING  - Creating plan in PLAN pane
+    WORKING   - Implementing in WORK pane
+    REVIEWING - Reviewing in REVIEW pane
+    COMPOUND  - Documenting learnings
+    DONE      - Feature complete
+
+EXAMPLES:
+    agent-flow-state get
+    agent-flow-state set PLANNING
+    agent-flow-state suggest
+    agent-flow-state clear
+EOF
+}
+
+cmd_get() {
+    cat "$STATE_FILE" 2>/dev/null || echo "IDLE"
+}
+
+cmd_set() {
+    local state="$1"
+
+    # Validate state
+    case "$state" in
+        IDLE|PLANNING|WORKING|REVIEWING|COMPOUND|DONE)
+            echo "$state" > "$STATE_FILE"
+            ;;
+        *)
+            echo "Invalid state: $state" >&2
+            echo "Valid states: IDLE, PLANNING, WORKING, REVIEWING, COMPOUND, DONE" >&2
+            exit 1
+            ;;
+    esac
+}
+
+cmd_suggest() {
+    local current=$(cmd_get)
+
+    case "$current" in
+        IDLE)
+            echo "Start with /workflows:plan in PLAN pane"
+            ;;
+        PLANNING)
+            echo "Plan ready? Run /workflows:work in WORK pane"
+            ;;
+        WORKING)
+            echo "Code done? Run /workflows:review in REVIEW pane"
+            ;;
+        REVIEWING)
+            echo "Review passed? Run /workflows:compound"
+            ;;
+        COMPOUND)
+            echo "Document learnings, then mark DONE"
+            ;;
+        DONE)
+            echo "Feature complete! Start next task?"
+            ;;
+        *)
+            echo "Unknown state. Run 'agent-flow-state clear' to reset."
+            ;;
+    esac
+}
+
+cmd_clear() {
+    rm -f "$STATE_FILE"
+    echo "Workflow state cleared"
+}
+
+# Main
+case "${1:-}" in
+    get)
+        cmd_get
+        ;;
+    set)
+        if [ -z "${2:-}" ]; then
+            echo "Error: state required" >&2
+            show_usage
+            exit 1
+        fi
+        cmd_set "$2"
+        ;;
+    suggest)
+        cmd_suggest
+        ;;
+    clear)
+        cmd_clear
+        ;;
+    --help|-h)
+        show_usage
+        ;;
+    "")
+        # No args - show current state and suggestion
+        echo "State: $(cmd_get)"
+        echo "Next:  $(cmd_suggest)"
+        ;;
+    *)
+        echo "Unknown command: $1" >&2
+        show_usage
+        exit 1
+        ;;
+esac

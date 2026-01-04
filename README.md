@@ -1,16 +1,18 @@
 # Agent Tmux Toolkit
 
-A tmux-based workflow for running multiple Claude Code agents in parallel with snippet support, session management, and git worktree integration.
+A tmux-based workflow for running multiple Claude Code agents in parallel with **compound engineering integration** - snippet support, session management, and git worktree integration.
 
 ## Features
 
 - **3-pane layout**: PLAN | WORK | REVIEW for parallel agent workflows
+- **Compound workflow orchestration**: PLAN -> WORK -> REVIEW -> COMPOUND loop
+- **Pane-aware snippets**: Shows relevant snippets based on current pane
+- **Cross-pane handoffs**: Transfer context between panes with smart templates
 - **Task-based sessions**: Name sessions by task ID for easy navigation
 - **Git worktree integration**: Isolated branches for parallel development
 - **Multi-agent delegation**: Spawn multiple agent sessions at once
 - **Status dashboard**: View all agent sessions at a glance
 - **Copy/paste**: Extract pane content to clipboard or paste into panes
-- **Snippet picker**: Quick text snippets with folder organization
 - **Session manager**: Interactive session/pane management
 - **Desktop notifications**: Optional alerts when agents need attention
 
@@ -48,11 +50,14 @@ agent-manage
 
 | Key | Action |
 |-----|--------|
+| `Option+S` | Open snippet picker (pane-aware) |
+| `Option+F` | Open workflow flow orchestrator |
+| `Option+H` | Handoff context between panes |
+| `Option+D` | Open status dashboard |
 | `Option+M` | Open agent manager |
-| `Option+S` | Open status dashboard |
-| `Option+A` | Open snippet picker |
+| `Option+Space` | Open snippet picker (alternative) |
 | `Option+1/2/3` | Jump to pane 1/2/3 |
-| `Option+H/J/K/L` | Navigate panes (vim-style) |
+| `Option+Arrows` | Navigate panes |
 | `Prefix+R` | Reload tmux config |
 
 ## Commands
@@ -138,13 +143,46 @@ Status indicators:
 - `◑ Running` - Session is running a command
 - `○ Idle` - Session has been idle for 5+ minutes
 
+### agent-flow
+
+Compound engineering workflow orchestrator:
+
+```bash
+agent-flow              # Interactive menu
+agent-flow start        # Focus PLAN pane, send /workflows:plan
+agent-flow work         # Focus WORK pane, send /workflows:work
+agent-flow review       # Focus REVIEW pane, send /workflows:review
+agent-flow compound     # Run /workflows:compound
+agent-flow status       # Show workflow state
+agent-flow reset        # Clear workflow state
+```
+
+The flow tracks your workflow state (IDLE -> PLANNING -> WORKING -> REVIEWING -> COMPOUND -> DONE) and suggests the next step.
+
+### agent-handoff
+
+Transfer context between panes with smart templates:
+
+```bash
+agent-handoff              # Interactive picker
+agent-handoff PLAN WORK    # Transfer from PLAN to WORK
+agent-handoff WORK REVIEW  # Transfer from WORK to REVIEW
+```
+
+Templates are applied based on source and target panes:
+- **PLAN -> WORK**: "Here's the plan to implement:"
+- **WORK -> REVIEW**: "Please review this implementation:"
+- **REVIEW -> WORK**: "Review feedback to address:"
+
 ### snippet-picker
 
-Folder-organized snippet picker with fzf:
+Pane-aware folder-organized snippet picker with fzf:
 
+- **Pane-aware filtering**: In PLAN pane, shows PLAN and EVERY folders first
 - Select folder first, then snippet
 - Left arrow goes back to folders
 - ESC cancels
+- Shows workflow suggestion in header
 
 ## Snippets
 
@@ -187,7 +225,38 @@ For Option/Meta keys to work:
 2. Set "Left Option Key" to "Esc+"
 3. Set "Right Option Key" to "Esc+"
 
-## Workflow Example
+## Compound Engineering Workflow
+
+The toolkit integrates with the compound engineering loop:
+
+```
+PLAN -> WORK -> REVIEW -> COMPOUND
+```
+
+### Quick Start
+
+1. **Start a session**: `agent-session --task my-feature`
+2. **Press `Option+F`** to open the flow orchestrator
+3. **Select "Start Feature"** - focuses PLAN pane, sends `/workflows:plan`
+4. After planning, select **"Plan -> Work"** - focuses WORK pane
+5. After implementing, select **"Work -> Review"** - focuses REVIEW pane
+6. After review passes, select **"Compound"** - documents learnings
+
+### Pane-Aware Snippets
+
+When you press `Option+S`, snippets are filtered based on your current pane:
+- **PLAN pane**: Shows PLAN, EVERY, and HANDOFF folders first
+- **WORK pane**: Shows WORK, EVERY, and QUICK folders first
+- **REVIEW pane**: Shows REVIEW and EVERY folders first
+
+### Cross-Pane Handoffs
+
+Press `Option+H` to transfer context between panes:
+1. Select source pane (with preview of content)
+2. Select target pane
+3. Content is injected with a smart template prefix
+
+## Parallel Workflow Example
 
 ```bash
 # Start a parallel agent workflow
@@ -198,6 +267,10 @@ agent-status
 
 # Attach to work on auth
 tmux attach -t agent-auth-module
+
+# Use Option+F for workflow orchestration
+# Use Option+H to handoff context between panes
+# Use Option+S for pane-aware snippets
 
 # When done, clean up
 agent-worktree --remove auth-module

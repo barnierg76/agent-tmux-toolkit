@@ -1,0 +1,36 @@
+#!/bin/bash
+# agent-flow-prompt - Prompt for workflow actions on lifecycle events
+# Usage: agent-flow-prompt <event>
+# Called by tmux hooks
+
+# Get current workflow state
+STATE=$(agent-flow-state get 2>/dev/null || echo "IDLE")
+
+case "${1:-}" in
+    detach)
+        # Called when client detaches from session
+        # Only notify if workflow is active (not IDLE or DONE)
+        if [[ "$STATE" != "IDLE" && "$STATE" != "DONE" ]]; then
+            agent-notify "Workflow Active" "State: $STATE. Remember to /workflows:compound!" 2>/dev/null || true
+        fi
+        ;;
+
+    idle)
+        # Called when pane has been idle for a while
+        suggestion=$(agent-flow-state suggest 2>/dev/null || echo "")
+        if [ -n "$suggestion" ]; then
+            agent-notify "Agent Idle" "$suggestion" 2>/dev/null || true
+        fi
+        ;;
+
+    activity)
+        # Called when there's activity in a pane
+        # Could be used to track state transitions automatically
+        ;;
+
+    *)
+        # Show current state info
+        echo "Workflow: $STATE"
+        agent-flow-state suggest 2>/dev/null || true
+        ;;
+esac

@@ -2,8 +2,42 @@
 # snippet-picker - Quick snippet selection for Claude Code agents
 # Usage: Called from tmux popup, sends selected snippet to active pane
 # Supports folders via # ═══ FOLDER ═══ headers in snippets file
+# Pane-aware: Shows relevant snippets based on current pane (PLAN/WORK/REVIEW)
 
 SNIPPETS_FILE="${HOME}/.config/agent-snippets/snippets.txt"
+
+# Detect current pane context for smart filtering
+detect_pane_context() {
+    # First try @role (set by agent-session)
+    local role=$(tmux display-message -p '#{@role}' 2>/dev/null)
+    if [ -n "$role" ]; then
+        echo "$role"
+        return
+    fi
+
+    # Fallback to pane title
+    local title=$(tmux display-message -p '#{pane_title}' 2>/dev/null)
+    case "$title" in
+        PLAN*) echo "PLAN" ;;
+        WORK*) echo "WORK" ;;
+        REVIEW*) echo "REVIEW" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Get folder filter pattern based on pane context
+get_pane_folder_filter() {
+    local context="$1"
+    case "$context" in
+        PLAN)   echo "^(PLAN|EVERY|HANDOFF)" ;;
+        WORK)   echo "^(WORK|EVERY|QUICK)" ;;
+        REVIEW) echo "^(REVIEW|EVERY)" ;;
+        *)      echo "" ;;  # No filter - show all
+    esac
+}
+
+CURRENT_PANE=$(detect_pane_context)
+PANE_FILTER=$(get_pane_folder_filter "$CURRENT_PANE")
 
 # Check if snippets file exists
 if [[ ! -f "$SNIPPETS_FILE" ]]; then
@@ -80,45 +114,94 @@ parse_snippets() {
 # Main navigation loop
 # Cache parsed snippets for performance
 PARSED_SNIPPETS=$(parse_snippets)
+
+# Get workflow suggestion if available
+WORKFLOW_SUGGESTION=""
+if command -v agent-flow-state &>/dev/null; then
+    WORKFLOW_SUGGESTION=$(agent-flow-state suggest 2>/dev/null || true)
+fi
+
 while true; do
     # Step 1: Show folders
-    folders=$(echo "$PARSED_SNIPPETS" | cut -d'/' -f1 | sort -u)
+    all_folders=$(echo "$PARSED_SNIPPETS" | cut -d'/' -f1 | sort -u)
 
-    # Sort with EVERY folders at top
-    folder_list="📂 All Snippets"$'\n'
+    # Build folder list with pane-aware filtering
+    folder_list=""
 
-    # Add EVERY folders first
-    while IFS= read -r f; do
-        [[ "$f" == EVERY* ]] && folder_list+="📁 $f"$'\n'
-    done <<< "$folders"
+    # If we have a pane context, show suggested folders first
+    if [[ -n "$PANE_FILTER" && -n "$CURRENT_PANE" ]]; then
+        folder_list="[$CURRENT_PANE] Suggested"$'\n'
 
-    # Add other folders
-    while IFS= read -r f; do
-        [[ "$f" != EVERY* ]] && folder_list+="📁 $f"$'\n'
-    done <<< "$folders"
+        # Add matching folders
+        while IFS= read -r f; do
+            if echo "$f" | grep -qE "$PANE_FILTER"; then
+                folder_list+="  $f"$'\n'
+            fi
+        done <<< "$all_folders"
+
+        folder_list+="All Snippets"$'\n'
+
+        # Add non-matching folders under "Other"
+        while IFS= read -r f; do
+            if ! echo "$f" | grep -qE "$PANE_FILTER"; then
+                folder_list+="  $f"$'\n'
+            fi
+        done <<< "$all_folders"
+    else
+        # No pane context - show all folders normally
+        folder_list="All Snippets"$'\n'
+
+        # Add EVERY folders first
+        while IFS= read -r f; do
+            [[ "$f" == EVERY* ]] && folder_list+="  $f"$'\n'
+        done <<< "$all_folders"
+
+        # Add other folders
+        while IFS= read -r f; do
+            [[ "$f" != EVERY* ]] && folder_list+="  $f"$'\n'
+        done <<< "$all_folders"
+    fi
+
+    # Build header with workflow suggestion
+    local header="Select folder (ESC to cancel)"
+    if [[ -n "$WORKFLOW_SUGGESTION" ]]; then
+        header="$header | $WORKFLOW_SUGGESTION"
+    fi
 
     selected_folder=$(echo -e "$folder_list" | sed '/^$/d' | fzf \
         --height=100% \
         --layout=reverse \
         --border=rounded \
         --prompt="› " \
-        --header="Select folder (ESC to cancel)" \
+        --header="$header" \
         --no-preview)
 
     [[ -z "$selected_folder" ]] && exit 0
 
-    # Extract folder name (remove 📁 or 📂 prefix)
-    selected_folder=$(echo "$selected_folder" | sed 's/^📁 //; s/^📂 //')
+    # Extract folder name (remove leading spaces and special prefixes)
+    selected_folder=$(echo "$selected_folder" | sed 's/^[[:space:]]*//')
 
+    # Handle special selections
     if [[ "$selected_folder" == "All Snippets" ]]; then
         FOLDER_FILTER=""
+    elif [[ "$selected_folder" == *"] Suggested" ]]; then
+        # "[PLAN] Suggested" etc - show all matching folders for this pane
+        # Set filter to match the pane's folders
+        FOLDER_FILTER="$PANE_FILTER"
     else
         FOLDER_FILTER="$selected_folder"
     fi
 
     # Step 2: Show snippets (filtered by folder if selected)
     if [[ -n "$FOLDER_FILTER" ]]; then
-        snippets=$(echo "$PARSED_SNIPPETS" | grep "^$FOLDER_FILTER/")
+        # Check if FOLDER_FILTER is a regex pattern (from pane context)
+        if [[ "$FOLDER_FILTER" == "^("* ]]; then
+            # It's a regex pattern - filter using grep -E
+            snippets=$(echo "$PARSED_SNIPPETS" | grep -E "$FOLDER_FILTER")
+        else
+            # It's a literal folder name
+            snippets=$(echo "$PARSED_SNIPPETS" | grep "^$FOLDER_FILTER/")
+        fi
     else
         snippets="$PARSED_SNIPPETS"
     fi

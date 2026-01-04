@@ -322,10 +322,10 @@ cmd_worktree() {
         return 1
     fi
 
-    read -p "Branch name: " branch
+    read -p "Branch name: " branch </dev/tty
     [ -z "$branch" ] && return 0
 
-    read -p "Base branch [main]: " base
+    read -p "Base branch [main]: " base </dev/tty
     base="${base:-main}"
 
     # Call agent-worktree
@@ -342,12 +342,12 @@ cmd_delegate() {
     echo -e "${BLUE}Delegate Tasks to Parallel Agents${NC}"
     echo ""
     echo "Enter task names (space-separated):"
-    read -p "> " tasks
+    read -p "> " tasks </dev/tty
 
     [ -z "$tasks" ] && return 0
 
     echo ""
-    read -p "Also create git worktrees? [y/N]: " use_worktree
+    read -p "Also create git worktrees? [y/N]: " use_worktree </dev/tty
 
     if command -v agent-delegate &>/dev/null; then
         if [[ "$use_worktree" =~ ^[Yy]$ ]]; then

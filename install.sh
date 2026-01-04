@@ -27,16 +27,24 @@ mkdir -p ~/.config/agent-snippets
 echo "Installing scripts to ~/.local/bin/"
 
 # Backup existing scripts
-for script in agent-session agent-manage snippet-picker snippet-edit; do
+for script in agent-session agent-manage agent-worktree agent-delegate agent-status agent-notify snippet-picker snippet-edit; do
     backup_if_exists ~/.local/bin/$script
 done
 
 cp bin/agent-session ~/.local/bin/
 cp bin/agent-manage ~/.local/bin/
+cp bin/agent-worktree ~/.local/bin/
+cp bin/agent-delegate ~/.local/bin/
+cp bin/agent-status ~/.local/bin/
+cp bin/agent-notify ~/.local/bin/
 cp bin/snippet-picker ~/.local/bin/
 cp bin/snippet-edit ~/.local/bin/
 chmod +x ~/.local/bin/agent-session
 chmod +x ~/.local/bin/agent-manage
+chmod +x ~/.local/bin/agent-worktree
+chmod +x ~/.local/bin/agent-delegate
+chmod +x ~/.local/bin/agent-status
+chmod +x ~/.local/bin/agent-notify
 chmod +x ~/.local/bin/snippet-picker
 chmod +x ~/.local/bin/snippet-edit
 
@@ -80,6 +88,7 @@ echo ""
 echo "Checking dependencies..."
 command -v tmux &>/dev/null && echo "  ✓ tmux" || echo "  ✗ tmux (required)"
 command -v fzf &>/dev/null && echo "  ✓ fzf" || echo "  ✗ fzf (install: brew install fzf)"
+command -v git &>/dev/null && echo "  ✓ git" || echo "  ✗ git (needed for worktrees)"
 
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
@@ -87,4 +96,10 @@ echo ""
 echo "Quick start:"
 echo "  1. Reload tmux: tmux source ~/.tmux.conf"
 echo "  2. Start session: agent-session"
-echo "  3. Use Option+A for snippets, Option+M for manager"
+echo "  3. Use Option+M for manager, Option+S for status"
+echo ""
+echo "New commands:"
+echo "  agent-session --task <id>     Create task-specific session"
+echo "  agent-worktree <branch>       Create worktree + session"
+echo "  agent-delegate <t1> <t2>      Spawn multiple agents"
+echo "  agent-status                  View all agent sessions"

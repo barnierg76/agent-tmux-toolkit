@@ -311,6 +311,87 @@ cmd_list() {
     tmux list-sessions 2>/dev/null || echo -e "${YELLOW}No tmux sessions running.${NC}"
 }
 
+# Create git worktree + agent session
+cmd_worktree() {
+    echo -e "${BLUE}Create Git Worktree + Agent Session${NC}"
+    echo ""
+
+    # Check if in git repo
+    if ! git rev-parse --git-dir &>/dev/null; then
+        echo -e "${RED}Error: Not a git repository${NC}"
+        return 1
+    fi
+
+    read -p "Branch name: " branch
+    [ -z "$branch" ] && return 0
+
+    read -p "Base branch [main]: " base
+    base="${base:-main}"
+
+    # Call agent-worktree
+    if command -v agent-worktree &>/dev/null; then
+        agent-worktree "$branch" "$base"
+    else
+        echo -e "${RED}agent-worktree not found in PATH${NC}"
+        return 1
+    fi
+}
+
+# Delegate tasks to multiple agent sessions
+cmd_delegate() {
+    echo -e "${BLUE}Delegate Tasks to Parallel Agents${NC}"
+    echo ""
+    echo "Enter task names (space-separated):"
+    read -p "> " tasks
+
+    [ -z "$tasks" ] && return 0
+
+    echo ""
+    read -p "Also create git worktrees? [y/N]: " use_worktree
+
+    if command -v agent-delegate &>/dev/null; then
+        if [[ "$use_worktree" =~ ^[Yy]$ ]]; then
+            agent-delegate --worktree $tasks
+        else
+            agent-delegate $tasks
+        fi
+    else
+        echo -e "${RED}agent-delegate not found in PATH${NC}"
+        return 1
+    fi
+}
+
+# Show status of all agent sessions
+cmd_status_all() {
+    if command -v agent-status &>/dev/null; then
+        agent-status
+    else
+        # Fallback inline implementation
+        echo -e "${BLUE}=== Agent Sessions Status ===${NC}"
+        echo ""
+
+        local sessions
+        sessions=$(tmux list-sessions -F "#{session_name}|#{session_windows}|#{session_attached}" 2>/dev/null | grep "^agent" || true)
+
+        if [ -z "$sessions" ]; then
+            echo -e "${YELLOW}No agent sessions found${NC}"
+            return 0
+        fi
+
+        printf "%-25s %-10s %-12s\n" "SESSION" "WINDOWS" "STATUS"
+        printf "%-25s %-10s %-12s\n" "-------" "-------" "------"
+
+        while IFS='|' read -r name windows attached; do
+            if [ "$attached" = "1" ]; then
+                status="${GREEN}Active${NC}"
+            else
+                status="${YELLOW}Detached${NC}"
+            fi
+            printf "%-25s %-10s %-12b\n" "$name" "$windows" "$status"
+        done <<< "$sessions"
+    fi
+}
+
 # Copy pane content to clipboard (visible content only)
 cmd_copy() {
     check_session
@@ -585,6 +666,11 @@ cmd_menu() {
         menu+="📋 Copy pane"$'\n'
         menu+="📜 Copy pane (full history)"$'\n'
         menu+="📥 Paste to pane"$'\n'
+        menu+="━━━ PARALLEL WORK ━━━"$'\n'
+        menu+="🌳 Create worktree"$'\n'
+        menu+="🚀 Delegate tasks"$'\n'
+        menu+="📊 All sessions status"$'\n'
+        menu+="━━━ CLEANUP ━━━"$'\n'
         menu+="❌ Close pane"$'\n'
         menu+="💀 Kill session"$'\n'
 
@@ -671,6 +757,17 @@ cmd_menu() {
                 ;;
             "📥 Paste to pane")
                 cmd_paste
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            "🌳 Create worktree")
+                cmd_worktree
+                ;;
+            "🚀 Delegate tasks")
+                cmd_delegate
+                ;;
+            "📊 All sessions status")
+                cmd_status_all
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;

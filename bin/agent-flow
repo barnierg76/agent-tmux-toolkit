@@ -78,11 +78,11 @@ focus_pane() {
         return 0
     fi
 
-    # Fallback: try by index
+    # Fallback: try by index (uses 1-based indexing per pane-base-index setting)
     case "$role" in
-        PLAN)   tmux select-pane -t "$SESSION_NAME:0.0" 2>/dev/null ;;
-        WORK)   tmux select-pane -t "$SESSION_NAME:0.1" 2>/dev/null ;;
-        REVIEW) tmux select-pane -t "$SESSION_NAME:0.2" 2>/dev/null ;;
+        PLAN)   tmux select-pane -t "$SESSION_NAME:1.1" 2>/dev/null ;;
+        WORK)   tmux select-pane -t "$SESSION_NAME:1.2" 2>/dev/null ;;
+        REVIEW) tmux select-pane -t "$SESSION_NAME:1.3" 2>/dev/null ;;
     esac
 }
 

@@ -89,3 +89,43 @@ Or keyboard workflow:
 
 ### Files Affected
 - `config/agent-tmux.conf` - added MouseDragEnd1Pane, DoubleClick1Pane, TripleClick1Pane bindings
+
+---
+
+## 2026-01-04 - Snippet Picker Field Count Mismatch
+
+### What Happened
+Selecting snippets in direct mode (Option+S with pane context) did nothing - the snippet wasn't sent to the pane.
+
+### Root Cause
+The `format_direct_snippets` function creates **3 tab-delimited fields**, but the code tried to extract **field 4**:
+
+```bash
+# format_direct_snippets output:
+# Field 1: [FOLDER] Label    (display)
+# Field 2: FOLDER/Label      (path)
+# Field 3: Content           (actual snippet)
+
+printf "[%s] %s\t%s\t%s\n" "$folder" "$label" "$path" "$content"
+```
+
+But the extraction used:
+```bash
+--preview='echo {4} | ...'   # Wrong! Field 4 doesn't exist
+text=$(echo "$selected" | cut -f4)  # Returns empty string
+```
+
+### The Fix
+Change field references from 4 to 3:
+```bash
+--preview='echo {3} | ...'   # Correct
+text=$(echo "$selected" | cut -f3)  # Gets content
+```
+
+### Pattern to Remember
+> When using tab-delimited data with fzf, count fields by tabs, not visual elements. `[FOLDER] Label` is ONE field, not two.
+
+### How to Avoid
+1. Add comments documenting the field structure near the format function
+2. Use consistent field numbering across preview and extraction
+3. Test the full flow (select → extract → send) not just display

@@ -112,7 +112,11 @@ parse_snippets() {
     ' "$SNIPPETS_FILE"
 }
 
-# Format snippets for direct display: [FOLDER] Label\tFOLDER/Label\tContent
+# Format snippets for direct display
+# Output format (3 tab-delimited fields):
+#   Field 1: [FOLDER] Label    (display text, shown in fzf)
+#   Field 2: FOLDER/Label      (path, for reference)
+#   Field 3: Content           (the actual snippet text)
 format_direct_snippets() {
     local filter_pattern="$1"
     echo "$PARSED_SNIPPETS" | grep -E "$filter_pattern" | while IFS=$'\t' read -r path content; do
@@ -156,7 +160,7 @@ while true; do
                     --header="$header" \
                     --delimiter=$'\t' \
                     --with-nth=1 \
-                    --preview='echo {4} | sed "s/\\\\n/\n/g"' \
+                    --preview='echo {3} | sed "s/\\\\n/\n/g"' \
                     --preview-window=down:4:wrap \
                     --bind='left:abort' \
                     --bind='?:execute(~/.local/bin/agent-help)' \
@@ -181,8 +185,8 @@ while true; do
                 continue  # Fall through to folder selection
             fi
 
-            # Extract the content (4th field after tabs)
-            text=$(echo "$selected" | cut -f4)
+            # Extract the content (field 3 - see format_direct_snippets)
+            text=$(echo "$selected" | cut -f3)
 
             # Replace \n with actual newlines
             text=$(echo "$text" | sed 's/\\n/\n/g')

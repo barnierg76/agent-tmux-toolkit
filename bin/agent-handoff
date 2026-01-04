@@ -24,6 +24,77 @@ get_session_name() {
 
 SESSION_NAME=$(get_session_name)
 
+# Get clipboard content (cross-platform)
+get_clipboard_content() {
+    local content=""
+
+    if command -v pbpaste &>/dev/null; then
+        content=$(pbpaste 2>/dev/null)
+    elif command -v xclip &>/dev/null; then
+        content=$(xclip -selection clipboard -o 2>/dev/null)
+    elif command -v xsel &>/dev/null; then
+        content=$(xsel --clipboard --output 2>/dev/null)
+    elif command -v wl-paste &>/dev/null; then
+        content=$(wl-paste 2>/dev/null)
+    fi
+
+    # Return empty if just whitespace
+    if [[ -z "${content// /}" ]]; then
+        echo ""
+    else
+        echo "$content"
+    fi
+}
+
+# Content source selection menu
+select_content_source() {
+    local clipboard_content="$1"
+
+    # Create preview (first 50 chars, single line)
+    local preview="${clipboard_content:0:50}"
+    preview=$(echo "$preview" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g')
+    local len=${#clipboard_content}
+
+    local menu=""
+    menu+="CLIPBOARD|[CLIPBOARD] \"${preview}...\" (${len}c)"$'\n'
+    menu+="PANE|[PANE] Last 50 lines from current pane"$'\n'
+    menu+="CANCEL|[CANCEL] Cancel handoff"
+
+    local selection
+    selection=$(echo -e "$menu" | fzf \
+        --height=30% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt="Send what? > " \
+        --header="HANDOFF - Select content source (? help, ESC cancel)" \
+        --delimiter='|' \
+        --with-nth=2 \
+        --no-preview \
+        --bind='esc:abort' \
+        --bind='?:execute(~/.local/bin/agent-help)' \
+        --expect='esc') || true
+
+    # Handle escape
+    local first_line=$(echo "$selection" | head -1)
+    if [[ "$first_line" == "esc" ]] || [[ -z "$selection" ]]; then
+        echo "CANCEL"
+        return
+    fi
+
+    echo "$selection" | tail -1 | cut -d'|' -f1
+}
+
+# Capture pane content (last N non-empty lines, strip ANSI)
+capture_pane_content() {
+    local pane_id="$1"
+    local lines="${2:-50}"
+
+    tmux capture-pane -p -t "$pane_id" 2>/dev/null | \
+        sed 's/\x1b\[[0-9;]*m//g' | \
+        grep -v '^[[:space:]]*$' | \
+        tail -"$lines"
+}
+
 show_usage() {
     cat << 'EOF'
 agent-handoff - Transfer context between panes
@@ -67,6 +138,17 @@ get_panes() {
 get_handoff_template() {
     local from_role="$1"
     local to_role="$2"
+
+    # Handle clipboard/selection source
+    if [[ "$from_role" == "selection" || "$from_role" == "clipboard" ]]; then
+        case "$to_role" in
+            PLAN*) echo "Here's some context to consider for planning:" ;;
+            WORK*) echo "Here's content to work with:" ;;
+            REVIEW*) echo "Please review this:" ;;
+            *) echo "Context:" ;;
+        esac
+        return
+    fi
 
     case "${from_role}_to_${to_role}" in
         PLAN*_to_WORK*)
@@ -152,11 +234,13 @@ select_pane_interactive() {
         --height=50% \
         --layout=reverse \
         --border=rounded \
-        --prompt="$prompt › " \
+        --prompt="$prompt > " \
+        --header="Select pane (? help, ESC cancel)" \
         --delimiter='|' \
         --with-nth=2 \
         --preview="tmux capture-pane -p -t {1} 2>/dev/null | tail -30" \
-        --preview-window=right:50%:wrap)
+        --preview-window=right:50%:wrap \
+        --bind='?:execute(~/.local/bin/agent-help)')
 
     [ -z "$selected" ] && exit 0
 
@@ -235,18 +319,83 @@ main() {
 
         do_handoff "$source_id" "$target_id"
     else
-        # Interactive mode
+        # Interactive mode with clipboard support
         check_fzf
 
-        echo -e "${BLUE}Select source pane:${NC}"
-        local source_id=$(select_pane_interactive "Source")
-        [ -z "$source_id" ] && exit 0
+        # Check clipboard first
+        local clipboard_content
+        clipboard_content=$(get_clipboard_content)
 
-        echo -e "${BLUE}Select target pane:${NC}"
-        local target_id=$(select_pane_interactive "Target" "$source_id")
-        [ -z "$target_id" ] && exit 0
+        local handoff_content=""
+        local source_desc=""
+        local source_role=""
 
-        do_handoff "$source_id" "$target_id"
+        if [[ -n "$clipboard_content" ]]; then
+            # Clipboard has content - ask what to send
+            local content_source
+            content_source=$(select_content_source "$clipboard_content")
+
+            case "$content_source" in
+                CLIPBOARD)
+                    handoff_content="$clipboard_content"
+                    source_desc="clipboard selection"
+                    source_role="selection"
+                    ;;
+                PANE)
+                    local current_pane
+                    current_pane=$(tmux display-message -p '#{pane_id}')
+                    handoff_content=$(capture_pane_content "$current_pane")
+                    source_role=$(tmux display-message -p '#{@role}')
+                    source_desc="pane content"
+                    ;;
+                CANCEL|"")
+                    echo -e "${DIM}Handoff cancelled${NC}"
+                    exit 0
+                    ;;
+            esac
+        else
+            # No clipboard - use current pane
+            local current_pane
+            current_pane=$(tmux display-message -p '#{pane_id}')
+            handoff_content=$(capture_pane_content "$current_pane")
+            source_role=$(tmux display-message -p '#{@role}')
+            source_desc="pane content"
+        fi
+
+        # Select target pane
+        echo -e "${CYAN}Select target pane:${NC}"
+        local target_id
+        target_id=$(select_pane_interactive "Target")
+
+        if [[ -z "$target_id" ]]; then
+            echo -e "${RED}No target selected${NC}"
+            exit 1
+        fi
+
+        # Get target role for template
+        local target_role
+        target_role=$(tmux display-message -p -t "$target_id" '#{@role}')
+
+        # Create handoff message with template
+        local template
+        template=$(get_handoff_template "$source_role" "$target_role")
+        local handoff
+        handoff=$(printf "%s\n\n---\n%s\n---\n" "$template" "$handoff_content")
+
+        # Send to target
+        echo "$handoff" | tmux load-buffer -
+        tmux paste-buffer -t "$target_id"
+
+        # Update workflow state based on target role
+        if command -v agent-flow-state &>/dev/null; then
+            case "$target_role" in
+                WORK)   agent-flow-state set WORKING 2>/dev/null ;;
+                REVIEW) agent-flow-state set REVIEWING 2>/dev/null ;;
+                PLAN)   agent-flow-state set PLANNING 2>/dev/null ;;
+            esac
+        fi
+
+        echo -e "${GREEN}Sent ${source_desc} to ${target_role:-target pane}${NC}"
     fi
 }
 

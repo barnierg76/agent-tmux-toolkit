@@ -3,7 +3,24 @@
 # Layout: Plan | Work | Review (three vertical columns)
 # Usage: agent-session [session-name] [project-path]
 
+# Colors for error messages
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Validate name - alphanumeric, dash, underscore only
+validate_name() {
+    local name="$1"
+    local type="${2:-name}"
+    if ! [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "${RED}Error: Invalid $type. Use only alphanumeric, dash, underscore.${NC}" >&2
+        return 1
+    fi
+    return 0
+}
+
 SESSION_NAME="${1:-agents}"
+validate_name "$SESSION_NAME" "session name" || exit 1
+
 PROJECT_PATH="${2:-$(pwd)}"
 
 # Check if session already exists

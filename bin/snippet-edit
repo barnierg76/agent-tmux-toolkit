@@ -12,5 +12,14 @@ elif command -v code &> /dev/null; then
 elif command -v nano &> /dev/null; then
     nano "$SNIPPETS_FILE"
 else
-    open "$SNIPPETS_FILE"
+    # Platform-aware fallback
+    if [[ "$(uname)" == "Darwin" ]]; then
+        open "$SNIPPETS_FILE"
+    elif command -v xdg-open &> /dev/null; then
+        xdg-open "$SNIPPETS_FILE"
+    else
+        echo "No editor found. Set EDITOR environment variable."
+        echo "File location: $SNIPPETS_FILE"
+        exit 1
+    fi
 fi

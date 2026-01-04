@@ -27,24 +27,11 @@ parse_snippets() {
     awk '
         BEGIN { folder="General"; label=""; content="" }
 
-        # Folder headers - match patterns like "# ═══ PLAN ═══"
-        /^# .* PLAN / { folder="PLAN"; next }
-        /^# .* WORK / { folder="WORK"; next }
-        /^# .* REVIEW / { folder="REVIEW"; next }
-        /^# .* HANDOFF / { folder="HANDOFF"; next }
-        /^# .* QUICK / { folder="QUICK"; next }
-        /^# .* EVERY WORKFLOWS / { folder="EVERY WORKFLOWS"; next }
-        /^# .* EVERY PLANNING / { folder="EVERY PLANNING"; next }
-        /^# .* EVERY TESTING / { folder="EVERY TESTING"; next }
-        /^# .* EVERY RESOLVE / { folder="EVERY RESOLVE"; next }
-        /^# .* EVERY BUGS / { folder="EVERY BUGS"; next }
-        /^# .* EVERY SKILLS / { folder="EVERY SKILLS"; next }
-        /^# .* EVERY DOCS / { folder="EVERY DOCS"; next }
-        /^# .* EVERY / {
-            # Catch any other EVERY folders
-            gsub(/^# .* EVERY /, "EVERY ", $0)
-            gsub(/ .*$/, "", $0)
-            folder=$0
+        # Folder headers - match any pattern like "# ═══ FOLDERNAME ═══"
+        /^# ═══.*═══/ {
+            folder = $0
+            sub(/^# ═══ /, "", folder)
+            sub(/ ═══.*$/, "", folder)
             next
         }
 
@@ -90,33 +77,12 @@ parse_snippets() {
     ' "$SNIPPETS_FILE"
 }
 
-# Get unique folders sorted with EVERY folders at top
-get_folders() {
-    parse_snippets | cut -d'/' -f1 | sort -u | awk '
-        /^EVERY/ { every[NR] = $0; next }
-        { other[NR] = $0 }
-        END {
-            for (i in every) print every[i]
-            for (i in other) print other[i]
-        }
-    ' | sort -u | awk '
-        /^EVERY/ { every[NR] = $0; next }
-        { other[NR] = $0 }
-        END {
-            # Print EVERY folders first (sorted)
-            n = asorti(every, sorted)
-            for (i = 1; i <= n; i++) print every[sorted[i]]
-            # Then other folders
-            n = asorti(other, sorted)
-            for (i = 1; i <= n; i++) print other[sorted[i]]
-        }
-    '
-}
-
 # Main navigation loop
+# Cache parsed snippets for performance
+PARSED_SNIPPETS=$(parse_snippets)
 while true; do
     # Step 1: Show folders
-    folders=$(parse_snippets | cut -d'/' -f1 | sort -u)
+    folders=$(echo "$PARSED_SNIPPETS" | cut -d'/' -f1 | sort -u)
 
     # Sort with EVERY folders at top
     folder_list="📂 All Snippets"$'\n'
@@ -152,9 +118,9 @@ while true; do
 
     # Step 2: Show snippets (filtered by folder if selected)
     if [[ -n "$FOLDER_FILTER" ]]; then
-        snippets=$(parse_snippets | grep "^$FOLDER_FILTER/")
+        snippets=$(echo "$PARSED_SNIPPETS" | grep "^$FOLDER_FILTER/")
     else
-        snippets=$(parse_snippets)
+        snippets="$PARSED_SNIPPETS"
     fi
 
     # Add "← Back" option at top, bind left arrow to select it
@@ -192,7 +158,7 @@ while true; do
     # Replace \n with actual newlines
     text=$(echo "$text" | sed 's/\\n/\n/g')
 
-    # Send the text and Enter to auto-submit
-    tmux send-keys "$text" Enter
+    # Send the text without auto-submit for security
+    tmux send-keys "$text"
     exit 0
 done

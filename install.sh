@@ -7,6 +7,16 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Backup file if it exists
+backup_if_exists() {
+    local file="$1"
+    if [[ -f "$file" ]]; then
+        local backup="${file}.backup.$(date +%Y%m%d%H%M%S)"
+        cp "$file" "$backup"
+        echo -e "${YELLOW}Backed up $file to $backup${NC}"
+    fi
+}
+
 echo -e "${GREEN}Installing Agent Tmux Toolkit...${NC}"
 
 # Create directories
@@ -15,15 +25,24 @@ mkdir -p ~/.config/agent-snippets
 
 # Copy scripts
 echo "Installing scripts to ~/.local/bin/"
+
+# Backup existing scripts
+for script in agent-session agent-manage snippet-picker snippet-edit; do
+    backup_if_exists ~/.local/bin/$script
+done
+
 cp bin/agent-session ~/.local/bin/
 cp bin/agent-manage ~/.local/bin/
 cp bin/snippet-picker ~/.local/bin/
 cp bin/snippet-edit ~/.local/bin/
-chmod +x ~/.local/bin/agent-*
-chmod +x ~/.local/bin/snippet-*
+chmod +x ~/.local/bin/agent-session
+chmod +x ~/.local/bin/agent-manage
+chmod +x ~/.local/bin/snippet-picker
+chmod +x ~/.local/bin/snippet-edit
 
 # Copy config
 echo "Installing config to ~/.config/"
+backup_if_exists ~/.config/agent-tmux.conf
 cp config/agent-tmux.conf ~/.config/
 
 # Copy snippets (only if not exists)
@@ -34,12 +53,15 @@ else
     echo -e "${YELLOW}Snippets file exists, skipping (backup at config/snippets.txt)${NC}"
 fi
 
-# Check if tmux.conf sources our config
+# Configure tmux to source our config
 if [[ -f ~/.tmux.conf ]]; then
     if ! grep -q "agent-tmux.conf" ~/.tmux.conf; then
-        echo ""
-        echo -e "${YELLOW}Add this line to your ~/.tmux.conf:${NC}"
-        echo "  source-file ~/.config/agent-tmux.conf"
+        echo "" >> ~/.tmux.conf
+        echo "# Agent Tmux Toolkit" >> ~/.tmux.conf
+        echo "source-file ~/.config/agent-tmux.conf" >> ~/.tmux.conf
+        echo "Added source line to existing ~/.tmux.conf"
+    else
+        echo "~/.tmux.conf already sources agent-tmux.conf"
     fi
 else
     echo "source-file ~/.config/agent-tmux.conf" > ~/.tmux.conf

@@ -698,11 +698,11 @@ cmd_menu() {
         # Handle selection
         case "$selected" in
             "➕ New session")
-                read -p "Session name [agents]: " session_name
+                read -p "Session name [agents]: " session_name </dev/tty
                 session_name="${session_name:-agents}"
                 if ! validate_name "$session_name" "session name"; then
                     echo ""
-                    read -p "Press Enter to continue..."
+                    read -p "Press Enter to continue..." </dev/tty
                     continue
                 fi
                 cmd_new "$session_name"
@@ -711,86 +711,87 @@ cmd_menu() {
             "📊 Status"*)
                 cmd_status
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "➕ Add panes")
-                read -p "How many panes to add? [1]: " count
+                read -p "How many panes to add? [1]: " count </dev/tty
                 count="${count:-1}"
-                read -p "Names (space-separated, optional): " -a names
+                read -p "Names (space-separated, optional): " -a names </dev/tty
                 cmd_add "$count" "${names[@]}"
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "📐 Layout"*)
                 cmd_layout
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "🏷️"*"Rename"*)
-                read -p "Pane index to rename: " index
-                read -p "New name: " name
+                read -p "Pane index to rename: " index </dev/tty
+                echo "(Suggested: PLAN, WORK, REVIEW, or PLAN: task-name)"
+                read -p "New name: " name </dev/tty
                 if [[ -n "$index" && -n "$name" ]]; then
                     if validate_name "$name" "pane name"; then
                         cmd_rename "$index" "$name"
                     fi
                 fi
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "🎯 Focus"*)
-                read -p "Pane index or name to focus: " target
+                read -p "Pane index or name to focus: " target </dev/tty
                 if [[ -n "$target" ]]; then
                     cmd_focus "$target"
                 fi
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "📋 Copy pane")
                 cmd_copy
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "📜 Copy pane (full history)")
                 cmd_copy_full
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "📥 Paste to pane")
                 cmd_paste
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "🌳 Create worktree")
                 cmd_worktree
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "🚀 Delegate tasks")
                 cmd_delegate
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "📊 All sessions status")
                 cmd_status_all
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "❌ Close"*)
-                read -p "Pane index or name to close: " target
+                read -p "Pane index or name to close: " target </dev/tty
                 if [[ -n "$target" ]]; then
                     cmd_close "$target"
                 fi
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             "💀 Kill"*)
                 echo "Options: session name, pane index, or 'all'"
-                read -p "What to kill: " target
+                read -p "What to kill: " target </dev/tty
                 if [[ -n "$target" ]]; then
                     cmd_kill "$target"
                 fi
                 echo ""
-                read -p "Press Enter to continue..."
+                read -p "Press Enter to continue..." </dev/tty
                 ;;
             🟢*|⚪*)
                 # Session selected - attach to it

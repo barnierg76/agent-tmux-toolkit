@@ -188,5 +188,15 @@ else
     tmux split-window -h -t "$SESSION_NAME" -c "$WORKTREE_DIR"
     tmux split-window -h -t "$SESSION_NAME" -c "$WORKTREE_DIR"
     tmux select-layout -t "$SESSION_NAME" even-horizontal
+
+    # Set pane roles and initial titles
+    PANE_IDS=($(tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}"))
+    tmux set-option -p -t "${PANE_IDS[0]}" @role "PLAN"
+    tmux set-option -p -t "${PANE_IDS[1]}" @role "WORK"
+    tmux set-option -p -t "${PANE_IDS[2]}" @role "REVIEW"
+    tmux select-pane -t "${PANE_IDS[0]}" -T "$BRANCH_NAME"
+    tmux select-pane -t "${PANE_IDS[1]}" -T "$BRANCH_NAME"
+    tmux select-pane -t "${PANE_IDS[2]}" -T "$BRANCH_NAME"
+
     tmux attach -t "$SESSION_NAME"
 fi

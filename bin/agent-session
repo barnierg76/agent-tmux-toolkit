@@ -112,28 +112,34 @@ tmux split-window -h -t "$SESSION_NAME:agents" -c "$PROJECT_PATH"
 # Even out the three panes (33% each)
 tmux select-layout -t "$SESSION_NAME:agents" even-horizontal
 
-# Get actual pane indices (tmux base-index may vary)
-PANES=($(tmux list-panes -t "$SESSION_NAME:agents" -F "#{pane_index}"))
+# Get actual pane IDs (for setting options)
+PANE_IDS=($(tmux list-panes -t "$SESSION_NAME:agents" -F "#{pane_id}"))
 
-# Name the panes (include task ID if provided)
+# Set role for each pane (shown as prefix in pane border)
+# Claude Code will dynamically update pane_title with current task
+tmux set-option -p -t "${PANE_IDS[0]}" @role "PLAN"
+tmux set-option -p -t "${PANE_IDS[1]}" @role "WORK"
+tmux set-option -p -t "${PANE_IDS[2]}" @role "REVIEW"
+
+# Set initial pane title (will be overwritten by Claude Code when it starts)
 if [ -n "$TASK_ID" ]; then
-    tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}" -T "PLAN: $TASK_ID"
-    tmux select-pane -t "$SESSION_NAME:agents.${PANES[1]}" -T "WORK: $TASK_ID"
-    tmux select-pane -t "$SESSION_NAME:agents.${PANES[2]}" -T "REVIEW: $TASK_ID"
+    tmux select-pane -t "${PANE_IDS[0]}" -T "$TASK_ID"
+    tmux select-pane -t "${PANE_IDS[1]}" -T "$TASK_ID"
+    tmux select-pane -t "${PANE_IDS[2]}" -T "$TASK_ID"
 else
-    tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}" -T "PLAN"
-    tmux select-pane -t "$SESSION_NAME:agents.${PANES[1]}" -T "WORK"
-    tmux select-pane -t "$SESSION_NAME:agents.${PANES[2]}" -T "REVIEW"
+    tmux select-pane -t "${PANE_IDS[0]}" -T "Ready"
+    tmux select-pane -t "${PANE_IDS[1]}" -T "Ready"
+    tmux select-pane -t "${PANE_IDS[2]}" -T "Ready"
 fi
 
 # Optional: Start Claude Code in each pane
 # Uncomment if you want auto-start:
-# tmux send-keys -t "$SESSION_NAME:agents.${PANES[0]}" "claude" Enter
-# tmux send-keys -t "$SESSION_NAME:agents.${PANES[1]}" "claude" Enter
-# tmux send-keys -t "$SESSION_NAME:agents.${PANES[2]}" "claude" Enter
+# tmux send-keys -t "${PANE_IDS[0]}" "claude" Enter
+# tmux send-keys -t "${PANE_IDS[1]}" "claude" Enter
+# tmux send-keys -t "${PANE_IDS[2]}" "claude" Enter
 
 # Focus on Plan pane
-tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}"
+tmux select-pane -t "${PANE_IDS[0]}"
 
 # Attach to the session
 tmux attach -t "$SESSION_NAME"

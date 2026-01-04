@@ -762,9 +762,13 @@ cmd_menu() {
                 ;;
             "🌳 Create worktree")
                 cmd_worktree
+                echo ""
+                read -p "Press Enter to continue..."
                 ;;
             "🚀 Delegate tasks")
                 cmd_delegate
+                echo ""
+                read -p "Press Enter to continue..."
                 ;;
             "📊 All sessions status")
                 cmd_status_all

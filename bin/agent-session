@@ -1,0 +1,46 @@
+#!/bin/bash
+# agent-session - Launch a 3-pane Claude Code agent workflow
+# Layout: Plan | Work | Review (three vertical columns)
+# Usage: agent-session [session-name] [project-path]
+
+SESSION_NAME="${1:-agents}"
+PROJECT_PATH="${2:-$(pwd)}"
+
+# Check if session already exists
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "Session '$SESSION_NAME' already exists. Attaching..."
+    tmux attach -t "$SESSION_NAME"
+    exit 0
+fi
+
+# Create new session with first pane (Plan)
+tmux new-session -d -s "$SESSION_NAME" -n "agents" -c "$PROJECT_PATH"
+
+# Split horizontally for Work pane (middle)
+tmux split-window -h -t "$SESSION_NAME:agents" -c "$PROJECT_PATH"
+
+# Split horizontally again for Review pane (right)
+tmux split-window -h -t "$SESSION_NAME:agents" -c "$PROJECT_PATH"
+
+# Even out the three panes (33% each)
+tmux select-layout -t "$SESSION_NAME:agents" even-horizontal
+
+# Get actual pane indices (tmux base-index may vary)
+PANES=($(tmux list-panes -t "$SESSION_NAME:agents" -F "#{pane_index}"))
+
+# Name the panes
+tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}" -T "PLAN"
+tmux select-pane -t "$SESSION_NAME:agents.${PANES[1]}" -T "WORK"
+tmux select-pane -t "$SESSION_NAME:agents.${PANES[2]}" -T "REVIEW"
+
+# Optional: Start Claude Code in each pane
+# Uncomment if you want auto-start:
+# tmux send-keys -t "$SESSION_NAME:agents.${PANES[0]}" "claude" Enter
+# tmux send-keys -t "$SESSION_NAME:agents.${PANES[1]}" "claude" Enter
+# tmux send-keys -t "$SESSION_NAME:agents.${PANES[2]}" "claude" Enter
+
+# Focus on Plan pane
+tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}"
+
+# Attach to the session
+tmux attach -t "$SESSION_NAME"

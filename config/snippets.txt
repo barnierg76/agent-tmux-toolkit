@@ -1,0 +1,147 @@
+# SNIPPETS - Edit freely!
+# 
+# Format:
+#   Label
+#   Text to send
+#   ---
+#
+# Lines starting with # are ignored
+# To edit: run `snippet-edit` or open ~/.config/agent-snippets/snippets.txt
+
+# ═══ PLAN ═══
+📋 Plan
+Plan this task. Break it into clear steps. Don't implement yet.
+---
+📋 Architecture
+Think through the architecture. What components? How do they connect?
+---
+📋 Risks
+What could go wrong? Edge cases? What should we watch out for?
+---
+📋 Simplify
+Too complex. What's the simplest version that works?
+---
+
+# ═══ WORK ═══
+⚙️ Implement
+Here's the plan. Implement it.
+---
+⚙️ Continue
+Continue.
+---
+⚙️ Fix
+Fix these issues.
+---
+⚙️ Just build
+Stop explaining. Write the code.
+---
+
+# ═══ REVIEW ═══
+🔍 Review
+Review this. What's wrong? What's missing?
+---
+🔍 vs Plan
+Does this match the plan?
+---
+🔍 Bugs
+Look for bugs and edge cases.
+---
+🔍 Ship ready?
+Is this ready to ship?
+---
+
+# ═══ HANDOFF ═══
+📤 Summarize
+Summarize in 2-3 bullets so I can share with another agent.
+---
+📥 Context
+Here's context:
+---
+
+# ═══ QUICK ═══
+Status
+Quick status.
+---
+Commit
+Commit with a clear message.
+---
+Test
+Run tests.
+---
+Ship
+Ship it.
+---
+
+# ═══ EVERY WORKFLOWS ═══
+🔄 Plan Workflow
+/compound-engineering:workflows:plan
+---
+🔄 Work Workflow
+/compound-engineering:workflows:work
+---
+🔄 Review Workflow
+/compound-engineering:workflows:review
+---
+🔄 Compound Learning
+/compound-engineering:workflows:compound
+---
+
+# ═══ EVERY PLANNING ═══
+📐 Deepen Plan
+/compound-engineering:deepen-plan
+---
+📐 Plan Review
+/compound-engineering:plan_review
+---
+
+# ═══ EVERY TESTING ═══
+🎭 Playwright Test
+/compound-engineering:playwright-test
+---
+📱 Xcode Test
+/compound-engineering:xcode-test
+---
+
+# ═══ EVERY RESOLVE ═══
+🔧 Resolve TODOs
+/compound-engineering:resolve_parallel
+---
+🔧 Resolve PR Comments
+/compound-engineering:resolve_pr_parallel
+---
+🔧 Resolve CLI Todos
+/compound-engineering:resolve_todo_parallel
+---
+
+# ═══ EVERY BUGS ═══
+🐛 Report Bug
+/compound-engineering:report-bug
+---
+🐛 Reproduce Bug
+/compound-engineering:reproduce-bug
+---
+🐛 Triage
+/compound-engineering:triage
+---
+
+# ═══ EVERY SKILLS ═══
+✨ Create Skill
+/compound-engineering:create-agent-skill
+---
+🩹 Heal Skill
+/compound-engineering:heal-skill
+---
+⚡ Generate Command
+/compound-engineering:generate_command
+---
+
+# ═══ EVERY DOCS ═══
+📝 Changelog
+/compound-engineering:changelog
+---
+📚 Deploy Docs
+/compound-engineering:deploy-docs
+---
+📚 Release Docs
+/compound-engineering:release-docs
+---

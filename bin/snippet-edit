@@ -1,0 +1,16 @@
+#!/bin/bash
+# snippet-edit - Open snippets file for editing
+# Usage: snippet-edit
+
+SNIPPETS_FILE="${HOME}/.config/agent-snippets/snippets.txt"
+
+# Use $EDITOR, fall back to common editors
+if [[ -n "$EDITOR" ]]; then
+    $EDITOR "$SNIPPETS_FILE"
+elif command -v code &> /dev/null; then
+    code "$SNIPPETS_FILE"
+elif command -v nano &> /dev/null; then
+    nano "$SNIPPETS_FILE"
+else
+    open "$SNIPPETS_FILE"
+fi

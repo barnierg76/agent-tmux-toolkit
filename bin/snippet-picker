@@ -1,0 +1,198 @@
+#!/bin/bash
+# snippet-picker - Quick snippet selection for Claude Code agents
+# Usage: Called from tmux popup, sends selected snippet to active pane
+# Supports folders via # ═══ FOLDER ═══ headers in snippets file
+
+SNIPPETS_FILE="${HOME}/.config/agent-snippets/snippets.txt"
+
+# Check if snippets file exists
+if [[ ! -f "$SNIPPETS_FILE" ]]; then
+    echo "No snippets file found at $SNIPPETS_FILE"
+    echo "Press any key to exit..."
+    read -n 1
+    exit 1
+fi
+
+# Check if fzf is installed
+if ! command -v fzf &> /dev/null; then
+    echo "fzf is required but not installed."
+    echo "Install with: brew install fzf"
+    read -n 1
+    exit 1
+fi
+
+# Parse snippets with folder information
+# Output: FOLDER/Label\tContent
+parse_snippets() {
+    awk '
+        BEGIN { folder="General"; label=""; content="" }
+
+        # Folder headers - match patterns like "# ═══ PLAN ═══"
+        /^# .* PLAN / { folder="PLAN"; next }
+        /^# .* WORK / { folder="WORK"; next }
+        /^# .* REVIEW / { folder="REVIEW"; next }
+        /^# .* HANDOFF / { folder="HANDOFF"; next }
+        /^# .* QUICK / { folder="QUICK"; next }
+        /^# .* EVERY WORKFLOWS / { folder="EVERY WORKFLOWS"; next }
+        /^# .* EVERY PLANNING / { folder="EVERY PLANNING"; next }
+        /^# .* EVERY TESTING / { folder="EVERY TESTING"; next }
+        /^# .* EVERY RESOLVE / { folder="EVERY RESOLVE"; next }
+        /^# .* EVERY BUGS / { folder="EVERY BUGS"; next }
+        /^# .* EVERY SKILLS / { folder="EVERY SKILLS"; next }
+        /^# .* EVERY DOCS / { folder="EVERY DOCS"; next }
+        /^# .* EVERY / {
+            # Catch any other EVERY folders
+            gsub(/^# .* EVERY /, "EVERY ", $0)
+            gsub(/ .*$/, "", $0)
+            folder=$0
+            next
+        }
+
+        # Skip comments
+        /^#/ { next }
+
+        # Skip empty lines
+        /^[[:space:]]*$/ { next }
+
+        # Separator - output accumulated snippet
+        /^---/ {
+            if (label != "" && content != "") {
+                gsub(/\n/, "\\n", content)
+                print folder "/" label "\t" content
+            }
+            label = ""
+            content = ""
+            next
+        }
+
+        # First non-empty line after separator is the label
+        label == "" {
+            label = $0
+            next
+        }
+
+        # Subsequent lines are content
+        {
+            if (content == "") {
+                content = $0
+            } else {
+                content = content "\n" $0
+            }
+        }
+
+        END {
+            # Output last snippet if any
+            if (label != "" && content != "") {
+                gsub(/\n/, "\\n", content)
+                print folder "/" label "\t" content
+            }
+        }
+    ' "$SNIPPETS_FILE"
+}
+
+# Get unique folders sorted with EVERY folders at top
+get_folders() {
+    parse_snippets | cut -d'/' -f1 | sort -u | awk '
+        /^EVERY/ { every[NR] = $0; next }
+        { other[NR] = $0 }
+        END {
+            for (i in every) print every[i]
+            for (i in other) print other[i]
+        }
+    ' | sort -u | awk '
+        /^EVERY/ { every[NR] = $0; next }
+        { other[NR] = $0 }
+        END {
+            # Print EVERY folders first (sorted)
+            n = asorti(every, sorted)
+            for (i = 1; i <= n; i++) print every[sorted[i]]
+            # Then other folders
+            n = asorti(other, sorted)
+            for (i = 1; i <= n; i++) print other[sorted[i]]
+        }
+    '
+}
+
+# Main navigation loop
+while true; do
+    # Step 1: Show folders
+    folders=$(parse_snippets | cut -d'/' -f1 | sort -u)
+
+    # Sort with EVERY folders at top
+    folder_list="📂 All Snippets"$'\n'
+
+    # Add EVERY folders first
+    while IFS= read -r f; do
+        [[ "$f" == EVERY* ]] && folder_list+="📁 $f"$'\n'
+    done <<< "$folders"
+
+    # Add other folders
+    while IFS= read -r f; do
+        [[ "$f" != EVERY* ]] && folder_list+="📁 $f"$'\n'
+    done <<< "$folders"
+
+    selected_folder=$(echo -e "$folder_list" | sed '/^$/d' | fzf \
+        --height=100% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt="› " \
+        --header="Select folder (ESC to cancel)" \
+        --no-preview)
+
+    [[ -z "$selected_folder" ]] && exit 0
+
+    # Extract folder name (remove 📁 or 📂 prefix)
+    selected_folder=$(echo "$selected_folder" | sed 's/^📁 //; s/^📂 //')
+
+    if [[ "$selected_folder" == "All Snippets" ]]; then
+        FOLDER_FILTER=""
+    else
+        FOLDER_FILTER="$selected_folder"
+    fi
+
+    # Step 2: Show snippets (filtered by folder if selected)
+    if [[ -n "$FOLDER_FILTER" ]]; then
+        snippets=$(parse_snippets | grep "^$FOLDER_FILTER/")
+    else
+        snippets=$(parse_snippets)
+    fi
+
+    # Add "← Back" option at top, bind left arrow to select it
+    selected=$(echo "$snippets" | \
+        fzf --height=100% \
+            --layout=reverse \
+            --border=rounded \
+            --prompt="› " \
+            --header="Select snippet (← back, ESC cancel)" \
+            --delimiter="\t" \
+            --with-nth=1 \
+            --preview='echo {2} | sed "s/\\\\n/\n/g"' \
+            --preview-window=down:4:wrap \
+            --bind='left:abort' \
+            --expect='left')
+
+    # Check if left arrow was pressed (go back to folders)
+    first_line=$(echo "$selected" | head -1)
+    if [[ "$first_line" == "left" ]] || [[ -z "$selected" ]]; then
+        # Left arrow or empty selection - check if truly cancelled
+        if [[ -z "$selected" ]]; then
+            exit 0  # ESC was pressed
+        fi
+        continue  # Left arrow - go back to folder selection
+    fi
+
+    # Extract actual selection (skip the expect key line)
+    selected=$(echo "$selected" | tail -n +2)
+
+    [[ -z "$selected" ]] && continue
+
+    # Extract the content (everything after the tab)
+    text=$(echo "$selected" | cut -f2-)
+
+    # Replace \n with actual newlines
+    text=$(echo "$text" | sed 's/\\n/\n/g')
+
+    # Send the text and Enter to auto-submit
+    tmux send-keys "$text" Enter
+    exit 0
+done

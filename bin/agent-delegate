@@ -1,0 +1,176 @@
+#!/bin/bash
+# agent-delegate - Spawn multiple parallel agent sessions
+# Usage: agent-delegate [--worktree] <task-1> [task-2] [task-3] ...
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+show_usage() {
+    cat << 'EOF'
+agent-delegate - Spawn multiple parallel agent sessions
+
+USAGE:
+    agent-delegate [options] <task-1> [task-2] [task-3] ...
+
+OPTIONS:
+    --worktree, -w    Also create git worktrees for each task
+    --base, -b <branch>  Base branch for worktrees (default: main)
+    --help, -h        Show this help
+
+EXAMPLES:
+    agent-delegate auth-fix api-refactor tests
+    agent-delegate --worktree feat-1 feat-2 feat-3
+    agent-delegate -w -b develop task-a task-b
+
+WORKFLOW:
+    1. Creates one tmux session per task (agent-<task>)
+    2. With --worktree, also creates git worktrees
+    3. Sessions run in background (detached)
+    4. Use 'tmux attach -t agent-<task>' to connect
+EOF
+}
+
+USE_WORKTREE=false
+BASE_BRANCH="main"
+TASKS=()
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --worktree|-w)
+            USE_WORKTREE=true
+            shift
+            ;;
+        --base|-b)
+            BASE_BRANCH="$2"
+            shift 2
+            ;;
+        --help|-h)
+            show_usage
+            exit 0
+            ;;
+        -*)
+            echo -e "${RED}Unknown option: $1${NC}"
+            show_usage
+            exit 1
+            ;;
+        *)
+            TASKS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Require at least one task
+if [ ${#TASKS[@]} -eq 0 ]; then
+    show_usage
+    exit 1
+fi
+
+# Verify git repo if using worktrees
+if [ "$USE_WORKTREE" = true ]; then
+    if ! git rev-parse --git-dir &>/dev/null; then
+        echo -e "${RED}Error: --worktree requires a git repository${NC}"
+        exit 1
+    fi
+fi
+
+echo -e "${BLUE}Delegating ${#TASKS[@]} task(s)...${NC}"
+echo ""
+
+CREATED=()
+FAILED=()
+
+for task in "${TASKS[@]}"; do
+    echo -e "${GREEN}Spawning: agent-${task}${NC}"
+
+    if [ "$USE_WORKTREE" = true ]; then
+        # Create worktree + session (non-interactive, detached)
+        REPO_NAME="${PWD##*/}"
+        WORKTREE_DIR="../${REPO_NAME}-${task}"
+        SESSION_NAME="agent-${task}"
+
+        # Skip if session already exists
+        if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+            echo -e "${YELLOW}  Session already exists, skipping${NC}"
+            continue
+        fi
+
+        # Create worktree if needed
+        if [ ! -d "$WORKTREE_DIR" ]; then
+            if git show-ref --verify --quiet "refs/heads/${task}"; then
+                git worktree add "$WORKTREE_DIR" "$task" 2>/dev/null || {
+                    FAILED+=("$task")
+                    continue
+                }
+            else
+                git worktree add -b "$task" "$WORKTREE_DIR" "$BASE_BRANCH" 2>/dev/null || {
+                    FAILED+=("$task")
+                    continue
+                }
+            fi
+        fi
+
+        # Create session in worktree (detached)
+        tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_DIR"
+        tmux split-window -h -t "$SESSION_NAME" -c "$WORKTREE_DIR"
+        tmux split-window -h -t "$SESSION_NAME" -c "$WORKTREE_DIR"
+        tmux select-layout -t "$SESSION_NAME" even-horizontal
+
+        # Name panes
+        PANES=($(tmux list-panes -t "$SESSION_NAME" -F "#{pane_index}"))
+        tmux select-pane -t "$SESSION_NAME.${PANES[0]}" -T "PLAN: $task"
+        tmux select-pane -t "$SESSION_NAME.${PANES[1]}" -T "WORK: $task"
+        tmux select-pane -t "$SESSION_NAME.${PANES[2]}" -T "REVIEW: $task"
+
+        CREATED+=("$task")
+    else
+        # Create session only (detached)
+        SESSION_NAME="agent-${task}"
+
+        if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+            echo -e "${YELLOW}  Session already exists, skipping${NC}"
+            continue
+        fi
+
+        tmux new-session -d -s "$SESSION_NAME" -c "$(pwd)"
+        tmux split-window -h -t "$SESSION_NAME" -c "$(pwd)"
+        tmux split-window -h -t "$SESSION_NAME" -c "$(pwd)"
+        tmux select-layout -t "$SESSION_NAME" even-horizontal
+
+        PANES=($(tmux list-panes -t "$SESSION_NAME" -F "#{pane_index}"))
+        tmux select-pane -t "$SESSION_NAME.${PANES[0]}" -T "PLAN: $task"
+        tmux select-pane -t "$SESSION_NAME.${PANES[1]}" -T "WORK: $task"
+        tmux select-pane -t "$SESSION_NAME.${PANES[2]}" -T "REVIEW: $task"
+
+        CREATED+=("$task")
+    fi
+
+    sleep 0.3  # Brief pause between session creation
+done
+
+echo ""
+
+if [ ${#CREATED[@]} -gt 0 ]; then
+    echo -e "${GREEN}Created ${#CREATED[@]} session(s):${NC}"
+    for task in "${CREATED[@]}"; do
+        echo "  - agent-${task}"
+    done
+fi
+
+if [ ${#FAILED[@]} -gt 0 ]; then
+    echo -e "${RED}Failed ${#FAILED[@]} task(s):${NC}"
+    for task in "${FAILED[@]}"; do
+        echo "  - $task"
+    done
+fi
+
+echo ""
+echo -e "${BLUE}Commands:${NC}"
+echo "  tmux attach -t agent-<task>   Attach to session"
+echo "  agent-status                  View all sessions"
+echo "  agent-manage                  Open management menu"

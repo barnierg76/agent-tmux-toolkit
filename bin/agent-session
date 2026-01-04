@@ -1,11 +1,34 @@
 #!/bin/bash
 # agent-session - Launch a 3-pane Claude Code agent workflow
 # Layout: Plan | Work | Review (three vertical columns)
-# Usage: agent-session [session-name] [project-path]
+# Usage: agent-session [options] [session-name] [project-path]
 
 # Colors for error messages
 RED='\033[0;31m'
+GREEN='\033[0;32m'
 NC='\033[0m' # No Color
+
+show_usage() {
+    cat << 'EOF'
+agent-session - Launch a 3-pane Claude Code agent workflow
+
+USAGE:
+    agent-session [options] [session-name] [project-path]
+
+OPTIONS:
+    --task, -t <id>     Create session named "agent-<id>" (for task-based workflows)
+    --name, -n <name>   Explicit session name
+    --path, -p <path>   Project directory (default: current directory)
+    --help, -h          Show this help
+
+EXAMPLES:
+    agent-session                    # Creates "agents" session
+    agent-session myproject          # Creates "myproject" session
+    agent-session --task 42          # Creates "agent-42" session
+    agent-session --task auth-fix    # Creates "agent-auth-fix" session
+    agent-session -t feat-1 -p ~/code/myapp
+EOF
+}
 
 # Validate name - alphanumeric, dash, underscore only
 validate_name() {
@@ -18,10 +41,57 @@ validate_name() {
     return 0
 }
 
-SESSION_NAME="${1:-agents}"
+# Parse arguments
+SESSION_NAME=""
+PROJECT_PATH=""
+TASK_ID=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --task|-t)
+            TASK_ID="$2"
+            shift 2
+            ;;
+        --name|-n)
+            SESSION_NAME="$2"
+            shift 2
+            ;;
+        --path|-p)
+            PROJECT_PATH="$2"
+            shift 2
+            ;;
+        --help|-h)
+            show_usage
+            exit 0
+            ;;
+        -*)
+            echo -e "${RED}Unknown option: $1${NC}"
+            show_usage
+            exit 1
+            ;;
+        *)
+            # Positional arguments (backward compatible)
+            if [ -z "$SESSION_NAME" ]; then
+                SESSION_NAME="$1"
+            elif [ -z "$PROJECT_PATH" ]; then
+                PROJECT_PATH="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Apply task ID if provided (overrides session name)
+if [ -n "$TASK_ID" ]; then
+    validate_name "$TASK_ID" "task ID" || exit 1
+    SESSION_NAME="agent-${TASK_ID}"
+fi
+
+# Defaults
+SESSION_NAME="${SESSION_NAME:-agents}"
 validate_name "$SESSION_NAME" "session name" || exit 1
 
-PROJECT_PATH="${2:-$(pwd)}"
+PROJECT_PATH="${PROJECT_PATH:-$(pwd)}"
 
 # Check if session already exists
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
@@ -45,10 +115,16 @@ tmux select-layout -t "$SESSION_NAME:agents" even-horizontal
 # Get actual pane indices (tmux base-index may vary)
 PANES=($(tmux list-panes -t "$SESSION_NAME:agents" -F "#{pane_index}"))
 
-# Name the panes
-tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}" -T "PLAN"
-tmux select-pane -t "$SESSION_NAME:agents.${PANES[1]}" -T "WORK"
-tmux select-pane -t "$SESSION_NAME:agents.${PANES[2]}" -T "REVIEW"
+# Name the panes (include task ID if provided)
+if [ -n "$TASK_ID" ]; then
+    tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}" -T "PLAN: $TASK_ID"
+    tmux select-pane -t "$SESSION_NAME:agents.${PANES[1]}" -T "WORK: $TASK_ID"
+    tmux select-pane -t "$SESSION_NAME:agents.${PANES[2]}" -T "REVIEW: $TASK_ID"
+else
+    tmux select-pane -t "$SESSION_NAME:agents.${PANES[0]}" -T "PLAN"
+    tmux select-pane -t "$SESSION_NAME:agents.${PANES[1]}" -T "WORK"
+    tmux select-pane -t "$SESSION_NAME:agents.${PANES[2]}" -T "REVIEW"
+fi
 
 # Optional: Start Claude Code in each pane
 # Uncomment if you want auto-start:

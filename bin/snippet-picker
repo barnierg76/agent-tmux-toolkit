@@ -3,6 +3,7 @@
 # Usage: Called from tmux popup, sends selected snippet to active pane
 # Supports folders via # ═══ FOLDER ═══ headers in snippets file
 # Pane-aware: Shows relevant snippets based on current pane (PLAN/WORK/REVIEW)
+# Direct mode: When context detected, shows snippets directly (skip folder selection)
 
 SNIPPETS_FILE="${HOME}/.config/agent-snippets/snippets.txt"
 
@@ -111,6 +112,16 @@ parse_snippets() {
     ' "$SNIPPETS_FILE"
 }
 
+# Format snippets for direct display: [FOLDER] Label\tFOLDER/Label\tContent
+format_direct_snippets() {
+    local filter_pattern="$1"
+    echo "$PARSED_SNIPPETS" | grep -E "$filter_pattern" | while IFS=$'\t' read -r path content; do
+        folder=$(echo "$path" | cut -d'/' -f1)
+        label=$(echo "$path" | cut -d'/' -f2-)
+        printf "[%s] %s\t%s\t%s\n" "$folder" "$label" "$path" "$content"
+    done
+}
+
 # Main navigation loop
 # Cache parsed snippets for performance
 PARSED_SNIPPETS=$(parse_snippets)
@@ -121,8 +132,68 @@ if command -v agent-flow-state &>/dev/null; then
     WORKFLOW_SUGGESTION=$(agent-flow-state suggest 2>/dev/null || true)
 fi
 
+# Track if we should use direct mode
+USE_DIRECT_MODE=true
+
 while true; do
-    # Step 1: Show folders
+    # Direct mode: show snippets directly when context is detected
+    if [[ -n "$PANE_FILTER" && -n "$CURRENT_PANE" && "$USE_DIRECT_MODE" == "true" ]]; then
+        direct_snippets=$(format_direct_snippets "$PANE_FILTER")
+
+        if [[ -n "$direct_snippets" ]]; then
+            # Build header
+            header="[$CURRENT_PANE] Select snippet (<- back, ? help, ESC quit)"
+            if [[ -n "$WORKFLOW_SUGGESTION" ]]; then
+                header="$header | $WORKFLOW_SUGGESTION"
+            fi
+
+            # Show direct snippets with "Browse All Folders" at top
+            selected=$(printf "%s\n%s" "Browse All Folders" "$direct_snippets" | \
+                fzf --height=100% \
+                    --layout=reverse \
+                    --border=rounded \
+                    --prompt="[$CURRENT_PANE] > " \
+                    --header="$header" \
+                    --delimiter=$'\t' \
+                    --with-nth=1 \
+                    --preview='echo {4} | sed "s/\\\\n/\n/g"' \
+                    --preview-window=down:4:wrap \
+                    --bind='left:abort' \
+                    --bind='?:execute(~/.local/bin/agent-help)' \
+                    --expect='left')
+
+            # Check if left arrow was pressed or empty (ESC)
+            first_line=$(echo "$selected" | head -1)
+            if [[ -z "$selected" ]]; then
+                exit 0  # ESC was pressed
+            fi
+            if [[ "$first_line" == "left" ]]; then
+                exit 0  # Left arrow in direct mode = exit
+            fi
+
+            # Extract actual selection (skip the expect key line)
+            selected=$(echo "$selected" | tail -n +2)
+            [[ -z "$selected" ]] && exit 0
+
+            # Check if "Browse All Folders" was selected
+            if [[ "$selected" == "Browse All Folders" ]]; then
+                USE_DIRECT_MODE=false
+                continue  # Fall through to folder selection
+            fi
+
+            # Extract the content (4th field after tabs)
+            text=$(echo "$selected" | cut -f4)
+
+            # Replace \n with actual newlines
+            text=$(echo "$text" | sed 's/\\n/\n/g')
+
+            # Send the text without auto-submit for security
+            tmux send-keys "$text"
+            exit 0
+        fi
+    fi
+
+    # Folder selection mode
     all_folders=$(echo "$PARSED_SNIPPETS" | cut -d'/' -f1 | sort -u)
 
     # Build folder list with pane-aware filtering
@@ -163,7 +234,7 @@ while true; do
     fi
 
     # Build header with workflow suggestion
-    local header="Select folder (ESC to cancel)"
+    header="Select folder (<- cancel, ? help, ESC quit)"
     if [[ -n "$WORKFLOW_SUGGESTION" ]]; then
         header="$header | $WORKFLOW_SUGGESTION"
     fi
@@ -172,10 +243,24 @@ while true; do
         --height=100% \
         --layout=reverse \
         --border=rounded \
-        --prompt="› " \
+        --prompt="> " \
         --header="$header" \
-        --no-preview)
+        --no-preview \
+        --bind='left:abort' \
+        --bind='?:execute(~/.local/bin/agent-help)' \
+        --expect='left')
 
+    # Check if left arrow was pressed or empty (ESC)
+    first_line=$(echo "$selected_folder" | head -1)
+    if [[ -z "$selected_folder" ]]; then
+        exit 0  # ESC was pressed
+    fi
+    if [[ "$first_line" == "left" ]]; then
+        exit 0  # Left arrow = exit
+    fi
+
+    # Extract actual selection (skip the expect key line)
+    selected_folder=$(echo "$selected_folder" | tail -n +2)
     [[ -z "$selected_folder" ]] && exit 0
 
     # Extract folder name (remove leading spaces and special prefixes)
@@ -206,18 +291,19 @@ while true; do
         snippets="$PARSED_SNIPPETS"
     fi
 
-    # Add "← Back" option at top, bind left arrow to select it
+    # Show snippets with back navigation
     selected=$(echo "$snippets" | \
         fzf --height=100% \
             --layout=reverse \
             --border=rounded \
-            --prompt="› " \
-            --header="Select snippet (← back, ESC cancel)" \
+            --prompt="> " \
+            --header="Select snippet (<- back, ? help, ESC quit)" \
             --delimiter="\t" \
             --with-nth=1 \
             --preview='echo {2} | sed "s/\\\\n/\n/g"' \
             --preview-window=down:4:wrap \
             --bind='left:abort' \
+            --bind='?:execute(~/.local/bin/agent-help)' \
             --expect='left')
 
     # Check if left arrow was pressed (go back to folders)

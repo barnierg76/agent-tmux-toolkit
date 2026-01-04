@@ -438,10 +438,11 @@ cmd_copy() {
             --height=50% \
             --layout=reverse \
             --border=rounded \
-            --prompt="Select pane to copy › " \
-            --header="Copy pane content to clipboard" \
+            --prompt="Select pane to copy > " \
+            --header="Copy pane content (? help, ESC quit)" \
             --preview="tmux capture-pane -p -S -20 -t '$SESSION_NAME.{1}' 2>/dev/null | head -20" \
-            --preview-window=right:50%:wrap)
+            --preview-window=right:50%:wrap \
+            --bind='?:execute(~/.local/bin/agent-help)')
 
         [ -z "$selected" ] && return 0
 
@@ -512,10 +513,11 @@ cmd_copy_full() {
             --height=50% \
             --layout=reverse \
             --border=rounded \
-            --prompt="Select pane to copy (full history) › " \
-            --header="Copy FULL scrollback to clipboard" \
+            --prompt="Select pane to copy (full history) > " \
+            --header="Copy FULL scrollback (? help, ESC quit)" \
             --preview="tmux capture-pane -p -S - -t '$SESSION_NAME.{1}' 2>/dev/null | tail -30" \
-            --preview-window=right:50%:wrap)
+            --preview-window=right:50%:wrap \
+            --bind='?:execute(~/.local/bin/agent-help)')
 
         [ -z "$selected" ] && return 0
 
@@ -599,10 +601,11 @@ cmd_paste() {
             --height=50% \
             --layout=reverse \
             --border=rounded \
-            --prompt="Select pane to paste into › " \
-            --header="Paste clipboard to pane" \
+            --prompt="Select pane to paste into > " \
+            --header="Paste clipboard (? help, ESC quit)" \
             --preview="echo 'Clipboard content:'; echo '─────────────────'; echo '$preview_content'" \
-            --preview-window=right:50%:wrap)
+            --preview-window=right:50%:wrap \
+            --bind='?:execute(~/.local/bin/agent-help)')
 
         [ -z "$selected" ] && return 0
 
@@ -679,10 +682,11 @@ cmd_menu() {
             --height=80% \
             --layout=reverse \
             --border=rounded \
-            --prompt="› " \
-            --header="agent-manage (← back, ESC quit)" \
+            --prompt="> " \
+            --header="agent-manage (<- back, ? help, ESC quit)" \
             --no-preview \
             --bind='left:abort' \
+            --bind='?:execute(~/.local/bin/agent-help)' \
             --expect='left')
 
         # Check for left arrow (go back - but we're at top level, so just refresh)

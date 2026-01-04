@@ -27,7 +27,7 @@ mkdir -p ~/.config/agent-snippets
 echo "Installing scripts to ~/.local/bin/"
 
 # Backup existing scripts
-for script in agent-session agent-manage agent-worktree agent-delegate agent-status agent-notify agent-flow agent-flow-state agent-flow-prompt agent-handoff snippet-picker snippet-edit; do
+for script in agent-session agent-manage agent-worktree agent-delegate agent-status agent-notify agent-flow agent-flow-state agent-flow-prompt agent-handoff agent-help snippet-picker snippet-edit; do
     backup_if_exists ~/.local/bin/$script
 done
 
@@ -47,6 +47,9 @@ cp bin/agent-flow-state ~/.local/bin/
 cp bin/agent-flow-prompt ~/.local/bin/
 cp bin/agent-handoff ~/.local/bin/
 
+# Help system
+cp bin/agent-help ~/.local/bin/
+
 # Set permissions
 chmod +x ~/.local/bin/agent-session
 chmod +x ~/.local/bin/agent-manage
@@ -58,6 +61,7 @@ chmod +x ~/.local/bin/agent-flow
 chmod +x ~/.local/bin/agent-flow-state
 chmod +x ~/.local/bin/agent-flow-prompt
 chmod +x ~/.local/bin/agent-handoff
+chmod +x ~/.local/bin/agent-help
 chmod +x ~/.local/bin/snippet-picker
 chmod +x ~/.local/bin/snippet-edit
 
@@ -119,6 +123,7 @@ echo "  Option+F     Flow orchestrator (PLAN->WORK->REVIEW->COMPOUND)"
 echo "  Option+H     Handoff context between panes"
 echo "  Option+D     Status dashboard"
 echo "  Option+M     Manager menu"
+echo "  Option+?     Help reference"
 echo "  Option+1/2/3 Jump to pane"
 echo ""
 echo "Commands:"

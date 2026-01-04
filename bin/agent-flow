@@ -3,24 +3,8 @@
 # Usage: agent-flow (interactive menu)
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-DIM='\033[2m'
-NC='\033[0m'
-
-# Get session name from environment or detect from tmux
-get_session_name() {
-    if [ -n "$AGENT_SESSION" ]; then
-        echo "$AGENT_SESSION"
-    elif tmux display-message -p '#{session_name}' 2>/dev/null; then
-        :
-    else
-        echo "agents"
-    fi
-}
+# Source shared utilities
+source "$(dirname "$0")/agent-common.sh"
 
 SESSION_NAME=$(get_session_name)
 
@@ -47,22 +31,6 @@ EXAMPLES:
 EOF
 }
 
-# Check if fzf is available
-check_fzf() {
-    if ! command -v fzf &> /dev/null; then
-        echo -e "${RED}Error: fzf is required${NC}"
-        echo "Install with: brew install fzf"
-        exit 1
-    fi
-}
-
-# Get pane ID by role (PLAN, WORK, REVIEW)
-get_pane_by_role() {
-    local role="$1"
-    tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}|#{@role}" 2>/dev/null | \
-        awk -F'|' -v role="$role" '$2 == role {print $1; exit}'
-}
-
 # Get current pane info
 get_current_pane() {
     tmux display-message -p '#{pane_id}|#{@role}|#{pane_title}' 2>/dev/null
@@ -71,29 +39,25 @@ get_current_pane() {
 # Focus on a pane by role
 focus_pane() {
     local role="$1"
-    local pane_id=$(get_pane_by_role "$role")
+    local pane_id=$(get_pane_by_role "$role" "$SESSION_NAME")
 
-    if [ -n "$pane_id" ]; then
+    if [[ -n "$pane_id" ]]; then
         tmux select-pane -t "$pane_id"
         return 0
     fi
 
-    # Fallback: try by index (uses 1-based indexing per pane-base-index setting)
-    case "$role" in
-        PLAN)   tmux select-pane -t "$SESSION_NAME:1.1" 2>/dev/null ;;
-        WORK)   tmux select-pane -t "$SESSION_NAME:1.2" 2>/dev/null ;;
-        REVIEW) tmux select-pane -t "$SESSION_NAME:1.3" 2>/dev/null ;;
-    esac
+    echo -e "${YELLOW}Warning: Could not find $role pane${NC}"
+    return 1
 }
 
 # Send keys to a pane by role
 send_to_pane() {
     local role="$1"
     shift
-    local pane_id=$(get_pane_by_role "$role")
+    local pane_id=$(get_pane_by_role "$role" "$SESSION_NAME")
 
-    if [ -n "$pane_id" ]; then
-        tmux send-keys -t "$pane_id" "$@"
+    if [[ -n "$pane_id" ]]; then
+        tmux send-keys -t "$pane_id" -l "$*"
     else
         echo -e "${YELLOW}Warning: Could not find $role pane${NC}"
     fi

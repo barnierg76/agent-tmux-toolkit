@@ -9,17 +9,18 @@ STATE=$(agent-flow-state get 2>/dev/null || echo "IDLE")
 case "${1:-}" in
     detach)
         # Called when client detaches from session
-        # Only notify if workflow is active (not IDLE or DONE)
+        # Log state for reference (no notification)
         if [[ "$STATE" != "IDLE" && "$STATE" != "DONE" ]]; then
-            agent-notify "Workflow Active" "State: $STATE. Remember to /workflows:compound!" 2>/dev/null || true
+            echo "[agent-flow] Detached with active workflow: $STATE"
         fi
         ;;
 
     idle)
         # Called when pane has been idle for a while
+        # Log suggestion (no notification)
         suggestion=$(agent-flow-state suggest 2>/dev/null || echo "")
         if [ -n "$suggestion" ]; then
-            agent-notify "Agent Idle" "$suggestion" 2>/dev/null || true
+            echo "[agent-flow] Idle suggestion: $suggestion"
         fi
         ;;
 

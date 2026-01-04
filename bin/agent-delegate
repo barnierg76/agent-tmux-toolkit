@@ -3,11 +3,8 @@
 # Usage: agent-delegate [--worktree] <task-1> [task-2] [task-3] ...
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Source shared utilities
+source "$(dirname "$0")/agent-common.sh"
 
 show_usage() {
     cat << 'EOF'

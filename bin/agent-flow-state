@@ -3,19 +3,11 @@
 # Usage: agent-flow-state [get|set|suggest|clear] [state]
 set -e
 
-STATE_DIR="${HOME}/.cache/agent-tmux"
-mkdir -p "$STATE_DIR"
+# Source shared utilities
+source "$(dirname "$0")/agent-common.sh"
 
-# Get session name from environment or detect from tmux
-get_session_name() {
-    if [ -n "$AGENT_SESSION" ]; then
-        echo "$AGENT_SESSION"
-    elif tmux display-message -p '#{session_name}' 2>/dev/null; then
-        :
-    else
-        echo "agents"
-    fi
-}
+STATE_DIR="${HOME}/.cache/agent-tmux"
+mkdir -p -m 700 "$STATE_DIR"
 
 SESSION_NAME=$(get_session_name)
 STATE_FILE="$STATE_DIR/${SESSION_NAME}.state"

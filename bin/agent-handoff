@@ -3,48 +3,10 @@
 # Usage: agent-handoff (interactive) or agent-handoff <source> <target>
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-DIM='\033[2m'
-NC='\033[0m'
-
-# Get session name from environment or detect from tmux
-get_session_name() {
-    if [ -n "$AGENT_SESSION" ]; then
-        echo "$AGENT_SESSION"
-    elif tmux display-message -p '#{session_name}' 2>/dev/null; then
-        :
-    else
-        echo "agents"
-    fi
-}
+# Source shared utilities
+source "$(dirname "$0")/agent-common.sh"
 
 SESSION_NAME=$(get_session_name)
-
-# Get clipboard content (cross-platform)
-get_clipboard_content() {
-    local content=""
-
-    if command -v pbpaste &>/dev/null; then
-        content=$(pbpaste 2>/dev/null)
-    elif command -v xclip &>/dev/null; then
-        content=$(xclip -selection clipboard -o 2>/dev/null)
-    elif command -v xsel &>/dev/null; then
-        content=$(xsel --clipboard --output 2>/dev/null)
-    elif command -v wl-paste &>/dev/null; then
-        content=$(wl-paste 2>/dev/null)
-    fi
-
-    # Return empty if just whitespace
-    if [[ -z "${content// /}" ]]; then
-        echo ""
-    else
-        echo "$content"
-    fi
-}
 
 # Content source selection menu
 select_content_source() {

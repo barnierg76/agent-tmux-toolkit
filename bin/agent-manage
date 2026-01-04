@@ -4,66 +4,10 @@
 
 set -e
 
-SESSION_NAME="${AGENT_SESSION:-agents}"
+# Source shared utilities
+source "$(dirname "$0")/agent-common.sh"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-
-# Validate name - alphanumeric, dash, underscore only
-validate_name() {
-    local name="$1"
-    local type="${2:-name}"
-    if ! [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo -e "${RED}Error: Invalid $type. Use only alphanumeric, dash, underscore.${NC}" >&2
-        return 1
-    fi
-    return 0
-}
-
-# Cross-platform clipboard copy
-copy_to_clipboard() {
-    local content="$1"
-
-    if command -v pbcopy &>/dev/null; then
-        echo -n "$content" | pbcopy
-    elif command -v xclip &>/dev/null; then
-        echo -n "$content" | xclip -selection clipboard
-    elif command -v xsel &>/dev/null; then
-        echo -n "$content" | xsel --clipboard --input
-    elif command -v wl-copy &>/dev/null; then
-        echo -n "$content" | wl-copy
-    elif command -v clip.exe &>/dev/null; then
-        echo -n "$content" | clip.exe
-    else
-        echo -e "${RED}No clipboard tool found${NC}"
-        echo "Install one of: pbcopy (macOS), xclip, xsel (Linux), wl-copy (Wayland)"
-        return 1
-    fi
-}
-
-# Cross-platform clipboard paste
-paste_from_clipboard() {
-    if command -v pbpaste &>/dev/null; then
-        pbpaste
-    elif command -v xclip &>/dev/null; then
-        xclip -selection clipboard -o
-    elif command -v xsel &>/dev/null; then
-        xsel --clipboard --output
-    elif command -v wl-paste &>/dev/null; then
-        wl-paste
-    elif command -v powershell.exe &>/dev/null; then
-        powershell.exe -command "Get-Clipboard" | tr -d '\r'
-    else
-        echo -e "${RED}No clipboard tool found${NC}" >&2
-        echo "Install one of: pbpaste (macOS), xclip, xsel (Linux), wl-paste (Wayland)" >&2
-        return 1
-    fi
-}
+SESSION_NAME=$(get_session_name)
 
 show_help() {
     cat << 'EOF'
@@ -311,169 +255,23 @@ cmd_list() {
     tmux list-sessions 2>/dev/null || echo -e "${YELLOW}No tmux sessions running.${NC}"
 }
 
-# Create git worktree + agent session
-cmd_worktree() {
-    echo -e "${BLUE}Create Git Worktree + Agent Session${NC}"
-    echo ""
 
-    # Check if in git repo
-    if ! git rev-parse --git-dir &>/dev/null; then
-        echo -e "${RED}Error: Not a git repository${NC}"
-        return 1
-    fi
-
-    read -p "Branch name: " branch </dev/tty
-    [ -z "$branch" ] && return 0
-
-    read -p "Base branch [main]: " base </dev/tty
-    base="${base:-main}"
-
-    # Call agent-worktree
-    if command -v agent-worktree &>/dev/null; then
-        agent-worktree "$branch" "$base"
-    else
-        echo -e "${RED}agent-worktree not found in PATH${NC}"
-        return 1
-    fi
-}
-
-# Delegate tasks to multiple agent sessions
-cmd_delegate() {
-    echo -e "${BLUE}Delegate Tasks to Parallel Agents${NC}"
-    echo ""
-    echo "Enter task names (space-separated):"
-    read -p "> " tasks </dev/tty
-
-    [ -z "$tasks" ] && return 0
-
-    echo ""
-    read -p "Also create git worktrees? [y/N]: " use_worktree </dev/tty
-
-    if command -v agent-delegate &>/dev/null; then
-        if [[ "$use_worktree" =~ ^[Yy]$ ]]; then
-            agent-delegate --worktree $tasks
-        else
-            agent-delegate $tasks
-        fi
-    else
-        echo -e "${RED}agent-delegate not found in PATH${NC}"
-        return 1
-    fi
-}
-
-# Show status of all agent sessions
-cmd_status_all() {
-    if command -v agent-status &>/dev/null; then
-        agent-status
-    else
-        # Fallback inline implementation
-        echo -e "${BLUE}=== Agent Sessions Status ===${NC}"
-        echo ""
-
-        local sessions
-        sessions=$(tmux list-sessions -F "#{session_name}|#{session_windows}|#{session_attached}" 2>/dev/null | grep "^agent" || true)
-
-        if [ -z "$sessions" ]; then
-            echo -e "${YELLOW}No agent sessions found${NC}"
-            return 0
-        fi
-
-        printf "%-25s %-10s %-12s\n" "SESSION" "WINDOWS" "STATUS"
-        printf "%-25s %-10s %-12s\n" "-------" "-------" "------"
-
-        while IFS='|' read -r name windows attached; do
-            if [ "$attached" = "1" ]; then
-                status="${GREEN}Active${NC}"
-            else
-                status="${YELLOW}Detached${NC}"
-            fi
-            printf "%-25s %-10s %-12b\n" "$name" "$windows" "$status"
-        done <<< "$sessions"
-    fi
-}
-
-# Copy pane content to clipboard (visible content only)
+# Copy pane content to clipboard
+# Usage: cmd_copy [--full] [target]
 cmd_copy() {
     check_session
 
-    local target="$1"
-    local pane_idx
+    local full_history=false
+    local target=""
 
-    # If target provided, use it directly
-    if [[ -n "$target" ]]; then
-        if [[ "$target" =~ ^[0-9]+$ ]]; then
-            pane_idx="$target"
-        else
-            # Find pane by name
-            pane_idx=$(tmux list-panes -t "$SESSION_NAME" -F "#{pane_index}:#{pane_title}" | grep ":$target" | cut -d: -f1 | head -1)
-            if [[ -z "$pane_idx" ]]; then
-                echo -e "${RED}Pane '$target' not found${NC}"
-                return 1
-            fi
-        fi
-    else
-        # Interactive selection with fzf
-        if ! command -v fzf &>/dev/null; then
-            echo -e "${RED}fzf required for interactive selection${NC}"
-            return 1
-        fi
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --full|-f) full_history=true; shift ;;
+            *) target="$1"; shift ;;
+        esac
+    done
 
-        local panes
-        panes=$(tmux list-panes -t "$SESSION_NAME" \
-            -F "#{pane_index}|#{pane_title}|#{pane_current_command}" 2>/dev/null)
-
-        if [ -z "$panes" ]; then
-            echo -e "${RED}No panes found in session${NC}"
-            return 1
-        fi
-
-        # Format for display
-        local display=""
-        while IFS='|' read -r idx title cmd; do
-            display+="$idx: $title ($cmd)"$'\n'
-        done <<< "$panes"
-
-        local selected
-        selected=$(echo -e "$display" | sed '/^$/d' | fzf \
-            --height=50% \
-            --layout=reverse \
-            --border=rounded \
-            --prompt="Select pane to copy > " \
-            --header="Copy pane content (? help, ESC quit)" \
-            --preview="tmux capture-pane -p -S -20 -t '$SESSION_NAME.{1}' 2>/dev/null | head -20" \
-            --preview-window=right:50%:wrap \
-            --bind='?:execute(~/.local/bin/agent-help)')
-
-        [ -z "$selected" ] && return 0
-
-        pane_idx=$(echo "$selected" | cut -d: -f1 | tr -d ' ')
-    fi
-
-    # Capture pane content (visible only, strip ANSI codes)
-    local content
-    content=$(tmux capture-pane -p -t "$SESSION_NAME.$pane_idx" 2>/dev/null | \
-        sed 's/\x1b\[[0-9;]*m//g')
-
-    if [ -z "$content" ] || [ "$(echo "$content" | tr -d '[:space:]')" = "" ]; then
-        echo -e "${YELLOW}Pane is empty (nothing to copy)${NC}"
-        return 0
-    fi
-
-    if ! copy_to_clipboard "$content"; then
-        return 1
-    fi
-
-    local line_count
-    line_count=$(echo "$content" | wc -l | tr -d ' ')
-
-    echo -e "${GREEN}Copied $line_count lines to clipboard${NC}"
-}
-
-# Copy pane content to clipboard (full scrollback history)
-cmd_copy_full() {
-    check_session
-
-    local target="$1"
     local pane_idx
 
     # If target provided, use it directly
@@ -489,10 +287,7 @@ cmd_copy_full() {
         fi
     else
         # Interactive selection with fzf
-        if ! command -v fzf &>/dev/null; then
-            echo -e "${RED}fzf required for interactive selection${NC}"
-            return 1
-        fi
+        check_fzf
 
         local panes
         panes=$(tmux list-panes -t "$SESSION_NAME" \
@@ -508,14 +303,25 @@ cmd_copy_full() {
             display+="$idx: $title ($cmd)"$'\n'
         done <<< "$panes"
 
+        local header prompt preview_cmd
+        if $full_history; then
+            header="Copy FULL scrollback (? help, ESC quit)"
+            prompt="Select pane to copy (full history) > "
+            preview_cmd="tmux capture-pane -p -S - -t '$SESSION_NAME.{1}' 2>/dev/null | tail -30"
+        else
+            header="Copy pane content (? help, ESC quit)"
+            prompt="Select pane to copy > "
+            preview_cmd="tmux capture-pane -p -S -20 -t '$SESSION_NAME.{1}' 2>/dev/null | head -20"
+        fi
+
         local selected
         selected=$(echo -e "$display" | sed '/^$/d' | fzf \
             --height=50% \
             --layout=reverse \
             --border=rounded \
-            --prompt="Select pane to copy (full history) > " \
-            --header="Copy FULL scrollback (? help, ESC quit)" \
-            --preview="tmux capture-pane -p -S - -t '$SESSION_NAME.{1}' 2>/dev/null | tail -30" \
+            --prompt="$prompt" \
+            --header="$header" \
+            --preview="$preview_cmd" \
             --preview-window=right:50%:wrap \
             --bind='?:execute(~/.local/bin/agent-help)')
 
@@ -524,9 +330,11 @@ cmd_copy_full() {
         pane_idx=$(echo "$selected" | cut -d: -f1 | tr -d ' ')
     fi
 
-    # Capture full scrollback (-S - means from start of history)
-    local content
-    content=$(tmux capture-pane -p -S - -t "$SESSION_NAME.$pane_idx" 2>/dev/null | \
+    # Capture pane content (strip ANSI codes)
+    local content capture_flags=""
+    $full_history && capture_flags="-S -"
+
+    content=$(tmux capture-pane -p $capture_flags -t "$SESSION_NAME.$pane_idx" 2>/dev/null | \
         sed 's/\x1b\[[0-9;]*m//g')
 
     if [ -z "$content" ] || [ "$(echo "$content" | tr -d '[:space:]')" = "" ]; then
@@ -538,10 +346,11 @@ cmd_copy_full() {
         return 1
     fi
 
-    local line_count
+    local line_count suffix=""
     line_count=$(echo "$content" | wc -l | tr -d ' ')
+    $full_history && suffix=" (full history)"
 
-    echo -e "${GREEN}Copied $line_count lines (full history) to clipboard${NC}"
+    echo -e "${GREEN}Copied $line_count lines$suffix to clipboard${NC}"
 }
 
 # Paste clipboard content to pane
@@ -756,7 +565,7 @@ cmd_menu() {
                 read -p "Press Enter to continue..." </dev/tty
                 ;;
             "📜 Copy pane (full history)")
-                cmd_copy_full
+                cmd_copy --full
                 echo ""
                 read -p "Press Enter to continue..." </dev/tty
                 ;;
@@ -766,17 +575,37 @@ cmd_menu() {
                 read -p "Press Enter to continue..." </dev/tty
                 ;;
             "🌳 Create worktree")
-                cmd_worktree
+                echo -e "${BLUE}Create Git Worktree + Agent Session${NC}"
+                echo ""
+                if ! git rev-parse --git-dir &>/dev/null; then
+                    echo -e "${RED}Error: Not a git repository${NC}"
+                else
+                    read -p "Branch name: " branch </dev/tty
+                    if [[ -n "$branch" ]]; then
+                        read -p "Base branch [main]: " base </dev/tty
+                        agent-worktree "$branch" "${base:-main}"
+                    fi
+                fi
                 echo ""
                 read -p "Press Enter to continue..." </dev/tty
                 ;;
             "🚀 Delegate tasks")
-                cmd_delegate
+                echo -e "${BLUE}Delegate Tasks to Parallel Agents${NC}"
+                echo "Enter task names (space-separated):"
+                read -p "> " tasks </dev/tty
+                if [[ -n "$tasks" ]]; then
+                    read -p "Also create git worktrees? [y/N]: " use_wt </dev/tty
+                    if [[ "$use_wt" =~ ^[Yy]$ ]]; then
+                        agent-delegate --worktree $tasks
+                    else
+                        agent-delegate $tasks
+                    fi
+                fi
                 echo ""
                 read -p "Press Enter to continue..." </dev/tty
                 ;;
             "📊 All sessions status")
-                cmd_status_all
+                agent-status
                 echo ""
                 read -p "Press Enter to continue..." </dev/tty
                 ;;
@@ -887,7 +716,7 @@ case "${1:-}" in
         ;;
     copy-full|cpf)
         shift
-        cmd_copy_full "$@"
+        cmd_copy --full "$@"
         ;;
     paste|p)
         shift

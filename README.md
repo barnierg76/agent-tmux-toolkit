@@ -198,18 +198,6 @@ Another content
 ---
 ```
 
-## Notifications
-
-Desktop notifications are disabled by default. To enable:
-
-1. Edit `~/.config/agent-tmux.conf`
-2. Uncomment the notification lines in the `=== NOTIFICATIONS ===` section
-3. Reload: `tmux source ~/.tmux.conf`
-
-To disable notifications:
-- Set environment variable: `export AGENT_NOTIFY_DISABLED=1`
-- Or create file: `touch ~/.agent-notify-disabled`
-
 ## Requirements
 
 - tmux 3.0+

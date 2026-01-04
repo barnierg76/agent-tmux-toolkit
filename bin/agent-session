@@ -3,10 +3,8 @@
 # Layout: Plan | Work | Review (three vertical columns)
 # Usage: agent-session [options] [session-name] [project-path]
 
-# Colors for error messages
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+# Source shared utilities
+source "$(dirname "$0")/agent-common.sh"
 
 show_usage() {
     cat << 'EOF'
@@ -28,17 +26,6 @@ EXAMPLES:
     agent-session --task auth-fix    # Creates "agent-auth-fix" session
     agent-session -t feat-1 -p ~/code/myapp
 EOF
-}
-
-# Validate name - alphanumeric, dash, underscore only
-validate_name() {
-    local name="$1"
-    local type="${2:-name}"
-    if ! [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo -e "${RED}Error: Invalid $type. Use only alphanumeric, dash, underscore.${NC}" >&2
-        return 1
-    fi
-    return 0
 }
 
 # Parse arguments

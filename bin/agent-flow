@@ -163,12 +163,12 @@ show_menu() {
     # Build menu based on current state
     cat << EOF
 COMPOUND WORKFLOW [$state]
-start|Start Feature|Focus PLAN pane, run /workflows:plan
-work|Plan -> Work|Focus WORK pane, run /workflows:work
-review|Work -> Review|Focus REVIEW pane, run /workflows:review
-compound|Compound|Document learnings with /workflows:compound
+start|Plan|Start planning a new feature
+work|Work|Start implementing the plan
+review|Review|Start reviewing the work
+compound|Compound|Document learnings
 ---
-handoff|Handoff Context|Transfer context between panes
+handoff|Handoff|Transfer context between panes
 status|Status|Show workflow state
 reset|Reset|Clear workflow state
 EOF
@@ -186,7 +186,7 @@ interactive_menu() {
         --prompt="› " \
         --header="Compound Engineering Flow [$state]" \
         --delimiter='|' \
-        --with-nth=2,3 \
+        --with-nth=2 \
         --preview-window=hidden)
 
     [ -z "$choice" ] && exit 0

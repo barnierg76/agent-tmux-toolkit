@@ -225,3 +225,86 @@ check_fzf() {
 strip_ansi() {
     sed 's/\x1b\[[0-9;]*m//g'
 }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INTERACTIVE PICKERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Show session picker for selection
+# Returns: selected session name on stdout
+# Exit codes: 0 = selected, 1 = cancelled/empty, 2 = back navigation
+# Usage: session=$(show_session_picker "Kill which session?")
+show_session_picker() {
+    local header="${1:-Select session}"
+    local current_session
+    current_session=$(tmux display-message -p '#S' 2>/dev/null)
+
+    local sessions
+    sessions=$(tmux list-sessions -F "#{session_name}|#{session_windows}|#{?session_attached,attached,detached}" 2>/dev/null | \
+        while IFS='|' read -r name windows status; do
+            local indicator=""
+            [[ "$name" == "$current_session" ]] && indicator=" *current"
+            echo "$name ($windows windows) $status$indicator"
+        done)
+
+    [[ -z "$sessions" ]] && return 1
+
+    local selected
+    selected=$(echo "$sessions" | fzf \
+        --height=50% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt="> " \
+        --header="$header (← back, ESC quit)" \
+        --bind='left:abort' \
+        --expect='left')
+
+    local first_line
+    first_line=$(echo "$selected" | head -1)
+    [[ "$first_line" == "left" ]] && return 2  # Back navigation
+
+    selected=$(echo "$selected" | tail -n +2 | awk '{print $1}')
+    [[ -z "$selected" ]] && return 1  # Cancelled
+
+    echo "$selected"
+}
+
+# Show pane picker for selection
+# Returns: selected pane index on stdout
+# Exit codes: 0 = selected, 1 = cancelled/empty, 2 = back navigation
+# Usage: pane=$(show_pane_picker "" "Close which pane?")
+show_pane_picker() {
+    local session="${1:-$(tmux display-message -p '#S' 2>/dev/null)}"
+    local header="${2:-Select pane}"
+
+    local panes
+    panes=$(tmux list-panes -t "$session" -F "#{pane_index}|#{@role}|#{pane_current_command}|#{pane_width}x#{pane_height}|#{pane_active}" 2>/dev/null | \
+        while IFS='|' read -r idx role cmd dims active; do
+            local indicator=""
+            [[ "$active" == "1" ]] && indicator=" *active"
+            role="${role:-unknown}"
+            echo "Pane $idx: $role - $cmd [$dims]$indicator"
+        done)
+
+    [[ -z "$panes" ]] && return 1
+
+    local selected
+    selected=$(echo "$panes" | fzf \
+        --height=50% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt="> " \
+        --header="$header (← back, ESC quit)" \
+        --bind='left:abort' \
+        --expect='left')
+
+    local first_line
+    first_line=$(echo "$selected" | head -1)
+    [[ "$first_line" == "left" ]] && return 2  # Back navigation
+
+    # Extract pane index from "Pane N: ..."
+    selected=$(echo "$selected" | tail -n +2 | sed -n 's/^Pane \([0-9]*\):.*/\1/p')
+    [[ -z "$selected" ]] && return 1  # Cancelled
+
+    echo "$selected"
+}

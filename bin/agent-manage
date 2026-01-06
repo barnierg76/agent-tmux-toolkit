@@ -498,9 +498,9 @@ cmd_menu() {
             --bind='?:execute(~/.local/bin/agent-help)' \
             --expect='left')
 
-        # Check for left arrow (go back - but we're at top level, so just refresh)
+        # Check for left arrow - at root level, exit the menu
         local first_line=$(echo "$selected" | head -1)
-        [[ "$first_line" == "left" ]] && continue
+        [[ "$first_line" == "left" ]] && exit 0
 
         selected=$(echo "$selected" | tail -n +2)
         [[ -z "$selected" ]] && exit 0
@@ -610,21 +610,42 @@ cmd_menu() {
                 read -p "Press Enter to continue..." </dev/tty
                 ;;
             "❌ Close"*)
-                read -p "Pane index or name to close: " target </dev/tty
-                if [[ -n "$target" ]]; then
-                    cmd_close "$target"
-                fi
-                echo ""
-                read -p "Press Enter to continue..." </dev/tty
+                pane=$(show_pane_picker "" "Close which pane?")
+                local exit_code=$?
+                case $exit_code in
+                    0)  # Pane selected
+                        if tmux kill-pane -t "$SESSION_NAME.$pane" 2>/dev/null; then
+                            echo -e "${GREEN}Pane $pane closed${NC}"
+                        else
+                            echo -e "${RED}Failed to close pane $pane${NC}"
+                        fi
+                        sleep 0.5
+                        ;;
+                    2)  # Back navigation - return to menu
+                        continue
+                        ;;
+                    *)  # Cancelled or error
+                        ;;
+                esac
                 ;;
             "💀 Kill"*)
-                echo "Options: session name, pane index, or 'all'"
-                read -p "What to kill: " target </dev/tty
-                if [[ -n "$target" ]]; then
-                    cmd_kill "$target"
-                fi
-                echo ""
-                read -p "Press Enter to continue..." </dev/tty
+                session=$(show_session_picker "Kill which session?")
+                local exit_code=$?
+                case $exit_code in
+                    0)  # Session selected
+                        if tmux kill-session -t "$session" 2>/dev/null; then
+                            echo -e "${GREEN}Session '$session' killed${NC}"
+                        else
+                            echo -e "${RED}Failed to kill session '$session'${NC}"
+                        fi
+                        sleep 0.5
+                        ;;
+                    2)  # Back navigation - return to menu
+                        continue
+                        ;;
+                    *)  # Cancelled or error
+                        ;;
+                esac
                 ;;
             🟢*|⚪*)
                 # Session selected - attach to it

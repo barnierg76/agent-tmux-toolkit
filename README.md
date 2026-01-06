@@ -267,3 +267,20 @@ agent-worktree --remove auth-module
 ## License
 
 MIT
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Quick Ways to Help
+
+- **Found a bug?** [Open an issue](../../issues/new?template=bug_report.yml)
+- **Have an idea?** [Request a feature](../../issues/new?template=feature_request.yml)
+- **Want to code?** Check issues labeled [`good first issue`](../../labels/good%20first%20issue)
+
+### Priority Areas
+
+- Improving error handling and validation
+- Adding test coverage
+- Documentation and examples
+- Cross-platform compatibility (Linux/WSL2)

@@ -1,0 +1,35 @@
+name: Feature Request
+description: Suggest an improvement or new feature
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case or pain point
+      placeholder: I often find myself needing to...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work?
+      placeholder: It would be great if...
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you've thought about?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      options:
+        - Session management
+        - Snippets
+        - Workflow orchestration
+        - Keybindings
+        - Git/worktree integration
+        - Documentation
+        - Other

@@ -82,15 +82,6 @@ HANDOFF TEMPLATES:
 EOF
 }
 
-# Check if fzf is available
-check_fzf() {
-    if ! command -v fzf &> /dev/null; then
-        echo -e "${RED}Error: fzf is required for interactive mode${NC}"
-        echo "Install with: brew install fzf"
-        exit 1
-    fi
-}
-
 # Get list of panes with their info
 get_panes() {
     tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}|#{pane_index}|#{@role}|#{pane_title}" 2>/dev/null

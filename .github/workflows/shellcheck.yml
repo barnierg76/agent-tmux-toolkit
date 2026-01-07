@@ -1,0 +1,28 @@
+name: ShellCheck
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bin/**'
+      - 'install.sh'
+      - '*.sh'
+  pull_request:
+    paths:
+      - 'bin/**'
+      - 'install.sh'
+      - '*.sh'
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@v2
+        env:
+          SHELLCHECK_OPTS: --severity=warning --shell=bash
+        with:
+          scandir: './bin'
+          additional_files: 'install.sh'

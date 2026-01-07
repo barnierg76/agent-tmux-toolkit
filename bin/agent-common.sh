@@ -20,6 +20,33 @@ BOLD='\033[1m'
 NC='\033[0m'  # No Color
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ERROR HANDLING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Print error message and exit
+# Usage: die "Error message" [exit_code]
+die() {
+    echo -e "${RED}Error: $1${NC}" >&2
+    exit "${2:-1}"
+}
+
+# Print warning message (doesn't exit)
+# Usage: warn "Warning message"
+warn() {
+    echo -e "${YELLOW}Warning: $1${NC}" >&2
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Configurable paths (can be overridden via environment)
+AGENT_CONFIG_DIR="${AGENT_CONFIG_DIR:-$HOME/.config/agent-snippets}"
+AGENT_CACHE_DIR="${AGENT_CACHE_DIR:-$HOME/.cache/agent-tmux}"
+AGENT_HELP_CMD="${AGENT_HELP_CMD:-$HOME/.local/bin/agent-help}"
+SNIPPETS_FILE="${SNIPPETS_FILE:-$AGENT_CONFIG_DIR/snippets.txt}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # VALIDATION
 # ═══════════════════════════════════════════════════════════════════════════════
 

@@ -5,10 +5,8 @@ set -e
 # Supports folders via # ═══ FOLDER ═══ headers in snippets file
 # Pane-aware: Shows relevant folders first based on current pane (PLAN/WORK/REVIEW)
 
-# Source shared utilities
+# Source shared utilities (defines SNIPPETS_FILE and other config)
 source "$(dirname "$0")/agent-common.sh"
-
-SNIPPETS_FILE="${HOME}/.config/agent-snippets/snippets.txt"
 
 # Single tmux call to get all pane info at once (performance optimization)
 IFS='|' read -r TARGET_PANE PANE_ROLE PANE_TITLE <<< "$(tmux display-message -p '#{pane_id}|#{@role}|#{pane_title}' 2>/dev/null)"

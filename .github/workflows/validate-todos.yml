@@ -1,0 +1,121 @@
+name: Validate Todo Consistency
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'todos/**'
+      - '.github/workflows/validate-todos.yml'
+  pull_request:
+    paths:
+      - 'todos/**'
+
+jobs:
+  validate-todo-files:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate todo file structure
+        run: |
+          echo "=== Validating Todo Files ==="
+          ERRORS=0
+
+          for todo in todos/???-*.md; do
+            if [ -f "$todo" ]; then
+              status=$(grep "^status:" "$todo" | cut -d: -f2 | xargs)
+              issue_id=$(grep "^issue_id:" "$todo" | cut -d'"' -f2)
+
+              # Check required fields
+              if [ -z "$status" ]; then
+                echo "ERROR in $(basename $todo): Missing 'status' field"
+                ((ERRORS++))
+              fi
+
+              if [ -z "$issue_id" ]; then
+                echo "ERROR in $(basename $todo): Missing 'issue_id' field"
+                ((ERRORS++))
+              fi
+
+              # If complete status, should have completed_date
+              if [ "$status" = "complete" ]; then
+                if ! grep -q "^completed_date:" "$todo"; then
+                  echo "WARNING in $(basename $todo): Complete todo missing 'completed_date'"
+                fi
+              fi
+            fi
+          done
+
+          if [ $ERRORS -gt 0 ]; then
+            echo "Found $ERRORS validation errors in todo files"
+            exit 1
+          fi
+          echo "All todo files validated successfully"
+
+      - name: Check for stale completed todos
+        run: |
+          echo "=== Checking Completed Todos ==="
+
+          for todo in todos/???-complete-*.md; do
+            if [ -f "$todo" ]; then
+              completed_date=$(grep "^completed_date:" "$todo" | cut -d: -f2 | xargs)
+
+              if [ -z "$completed_date" ]; then
+                echo "WARNING: $(basename $todo) is complete but missing completed_date"
+              fi
+            fi
+          done
+
+      - name: List current todo status
+        run: |
+          echo "=== Current Todo Status ==="
+
+          pending_count=$(ls -1 todos/???-pending-*.md 2>/dev/null | wc -l)
+          complete_count=$(ls -1 todos/???-complete-*.md 2>/dev/null | wc -l)
+
+          echo "Pending: $pending_count"
+          echo "Complete: $complete_count"
+
+          echo ""
+          echo "Pending todos:"
+          ls -1 todos/???-pending-*.md 2>/dev/null | sed 's|todos/||' | head -10
+
+  check-pr-references:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check PR description for issue references
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+
+          echo "=== Checking PR References ==="
+          echo "PR: #${{ github.event.pull_request.number }}"
+          echo ""
+
+          if echo "$PR_BODY" | grep -qiE "(closes|fixes|resolves) #[0-9]+"; then
+            echo "✓ PR references issues with closing keywords"
+            echo ""
+            echo "Found references:"
+            echo "$PR_BODY" | grep -iE "(closes|fixes|resolves) #[0-9]+" || true
+          else
+            # Check if PR deletes files
+            FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD --diff-filter=D 2>/dev/null || echo "")
+
+            if [ -n "$FILES" ]; then
+              echo "⚠ PR deletes files but doesn't reference closing any issues:"
+              echo "$FILES"
+              echo ""
+              echo "When deleting code, please include in PR description:"
+              echo "  Closes #N"
+              echo "  Fixes #M"
+              echo "  etc."
+              echo ""
+              echo "GitHub will auto-close referenced issues when PR is merged."
+            fi
+          fi

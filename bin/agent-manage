@@ -61,30 +61,6 @@ check_session() {
     fi
 }
 
-# Resolve pane target (name or index) to pane index
-# Returns: pane index on stdout, exit 1 if not found
-resolve_pane() {
-    local target="$1"
-
-    # If numeric, verify it exists
-    if [[ "$target" =~ ^[0-9]+$ ]]; then
-        if tmux list-panes -t "$SESSION_NAME" -F "#{pane_index}" 2>/dev/null | grep -q "^$target$"; then
-            echo "$target"
-            return 0
-        fi
-    else
-        # Find by name
-        local index
-        index=$(tmux list-panes -t "$SESSION_NAME" -F "#{pane_index}:#{pane_title}" 2>/dev/null | \
-            awk -F: -v name="$target" '$2 == name {print $1; exit}')
-        if [[ -n "$index" ]]; then
-            echo "$index"
-            return 0
-        fi
-    fi
-    return 1
-}
-
 # Show status of all panes
 cmd_status() {
     echo -e "${BLUE}=== TMUX Agent Status ===${NC}"
@@ -219,6 +195,11 @@ cmd_rename() {
 
     if [[ -z "$index" ]] || [[ -z "$name" ]]; then
         echo -e "${RED}Error: Usage: agent-manage rename <index> <name>${NC}"
+        exit 1
+    fi
+
+    # Validate the pane name to prevent injection
+    if ! validate_name "$name" "pane name"; then
         exit 1
     fi
 
@@ -614,13 +595,13 @@ cmd_menu() {
             "🚀 Delegate tasks")
                 echo -e "${BLUE}Delegate Tasks to Parallel Agents${NC}"
                 echo "Enter task names (space-separated):"
-                read -p "> " tasks </dev/tty
-                if [[ -n "$tasks" ]]; then
+                read -p "> " -a task_array </dev/tty
+                if [[ ${#task_array[@]} -gt 0 ]]; then
                     read -p "Also create git worktrees? [y/N]: " use_wt </dev/tty
                     if [[ "$use_wt" =~ ^[Yy]$ ]]; then
-                        agent-delegate --worktree $tasks
+                        agent-delegate --worktree "${task_array[@]}"
                     else
-                        agent-delegate $tasks
+                        agent-delegate "${task_array[@]}"
                     fi
                 fi
                 echo ""

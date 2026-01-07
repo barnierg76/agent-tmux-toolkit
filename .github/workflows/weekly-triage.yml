@@ -1,0 +1,111 @@
+name: Weekly Todo Triage
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run triage analysis
+        run: |
+          echo "=== Weekly Todo Triage Report ==="
+          echo "Generated: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+
+          # Count todos by status
+          pending=$(ls -1 todos/???-pending-*.md 2>/dev/null | wc -l)
+          complete=$(ls -1 todos/???-complete-*.md 2>/dev/null | wc -l)
+
+          echo "Total Pending: $pending"
+          echo "Total Complete: $complete"
+          echo ""
+
+          # Find pending todos
+          if [ $pending -gt 0 ]; then
+            echo "Currently Pending Todos:"
+            ls -1 todos/???-pending-*.md 2>/dev/null | sed 's|todos/||' | while read -r todo; do
+              priority=$(grep "^priority:" "todos/$todo" | cut -d: -f2 | xargs)
+              echo "  - $todo (priority: $priority)"
+            done
+            echo ""
+          fi
+
+          # Find todos missing GitHub issue links
+          echo "Todos Missing GitHub Issue Links:"
+          for todo in todos/???-pending-*.md; do
+            if [ -f "$todo" ]; then
+              github_issue=$(grep "^github_issue:" "$todo" 2>/dev/null | cut -d: -f2 | xargs || echo "")
+              if [ -z "$github_issue" ]; then
+                issue_id=$(grep "^issue_id:" "$todo" | cut -d'"' -f2)
+                echo "  - $(basename $todo) [TODO ID: $issue_id]"
+              fi
+            fi
+          done
+          echo ""
+
+          # Check for recently completed todos
+          echo "Recently Completed:"
+          for todo in todos/???-complete-*.md; do
+            if [ -f "$todo" ]; then
+              completed_date=$(grep "^completed_date:" "$todo" 2>/dev/null | cut -d: -f2 | xargs || echo "")
+              if [ -n "$completed_date" ]; then
+                # Simple date comparison (last 7 days)
+                today=$(date -d now +%s 2>/dev/null || date -u +%s)
+                file_date=$(date -d "$completed_date" +%s 2>/dev/null || echo "0")
+                days_ago=$(( (today - file_date) / 86400 ))
+
+                if [ $days_ago -lt 7 ] && [ $days_ago -ge 0 ]; then
+                  echo "  - $(basename $todo) (completed $days_ago days ago)"
+                fi
+              fi
+            fi
+          done
+          echo ""
+
+      - name: Create issue summary
+        if: github.event_name == 'schedule'
+        run: |
+          echo "## Weekly Todo Triage Summary" > /tmp/triage_summary.md
+          echo "" >> /tmp/triage_summary.md
+
+          pending=$(ls -1 todos/???-pending-*.md 2>/dev/null | wc -l)
+          complete=$(ls -1 todos/???-complete-*.md 2>/dev/null | wc -l)
+
+          echo "**Status:** $pending pending, $complete complete" >> /tmp/triage_summary.md
+          echo "" >> /tmp/triage_summary.md
+
+          echo "### Action Items" >> /tmp/triage_summary.md
+          echo "" >> /tmp/triage_summary.md
+
+          unlinked=0
+          for todo in todos/???-pending-*.md; do
+            if [ -f "$todo" ]; then
+              github_issue=$(grep "^github_issue:" "$todo" 2>/dev/null | cut -d: -f2 | xargs || echo "")
+              if [ -z "$github_issue" ]; then
+                ((unlinked++))
+              fi
+            fi
+          done
+
+          if [ $unlinked -gt 0 ]; then
+            echo "- **Link todos to GitHub issues:** $unlinked pending todos are not linked to GitHub issues" >> /tmp/triage_summary.md
+          fi
+
+          echo "" >> /tmp/triage_summary.md
+          echo "For details, run: \`./bin/triage-issues.sh\`" >> /tmp/triage_summary.md
+
+          cat /tmp/triage_summary.md
+
+      - name: Comment on PRs with unlinked changes
+        if: always()
+        run: |
+          echo "Triage workflow completed successfully"

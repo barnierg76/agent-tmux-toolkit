@@ -129,3 +129,63 @@ text=$(echo "$selected" | cut -f3)  # Gets content
 1. Add comments documenting the field structure near the format function
 2. Use consistent field numbering across preview and extraction
 3. Test the full flow (select → extract → send) not just display
+
+---
+
+## 2026-01-07 - Tmux Content Injection Methods
+
+### Context
+The toolkit uses two different methods for injecting content into panes. Understanding the tradeoffs helps choose the right method for each use case.
+
+### Method 1: send-keys -l (Literal)
+
+**Used in:** `snippet-picker`, `agent-manage paste`
+
+```bash
+tmux send-keys -t "$pane" -l "$content"
+```
+
+**Pros:**
+- The `-l` flag prevents interpretation of special keys (Enter, Tab, etc.)
+- Content appears exactly as typed
+- Safe for code snippets with special characters
+
+**Cons:**
+- Very long content may be slow (character-by-character)
+- Some terminal escape sequences may still be interpreted
+
+### Method 2: load-buffer + paste-buffer
+
+**Used in:** `agent-handoff`
+
+```bash
+echo "$content" | tmux load-buffer -
+tmux paste-buffer -t "$pane"
+```
+
+**Pros:**
+- Better performance for large content blocks
+- Faster for multi-line content
+- Native tmux paste behavior
+
+**Cons:**
+- Bypasses `-l` literal protection
+- May interpret bracket paste sequences
+- Content goes through tmux buffer (can be captured)
+
+### When to Use Each
+
+| Use Case | Recommended Method |
+|----------|-------------------|
+| Short snippets (< 100 lines) | `send-keys -l` |
+| Large content / handoffs | `load-buffer` + `paste-buffer` |
+| Security-sensitive content | `send-keys -l` |
+| Fast bulk transfers | `load-buffer` + `paste-buffer` |
+
+### Pattern to Remember
+> Use `send-keys -l` when content safety matters (snippets, code). Use `load-buffer` + `paste-buffer` when speed matters and content is trusted (handoffs between your own panes).
+
+### Files Using These Patterns
+- `bin/snippet-picker:87` - Uses `send-keys -l`
+- `bin/agent-manage:cmd_paste()` - Uses `send-keys -l`
+- `bin/agent-handoff:inject_handoff()` - Uses `load-buffer` + `paste-buffer`

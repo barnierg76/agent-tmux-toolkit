@@ -1,6 +1,12 @@
 # Agent Tmux Toolkit
 
-A tmux-based workflow for running multiple Claude Code agents in parallel with **compound engineering integration** - snippet support, session management, and git worktree integration.
+A tmux-based workflow for running multiple AI agents in parallel with **compound engineering integration** - snippet support, session management, and git worktree integration.
+
+## What it looks like
+
+![agent-tmux-toolkit showing 3-pane layout with PLAN, WORK, and REVIEW panes, and the agent-flow menu open for workflow orchestration](docs/images/hero-agent-flow.png)
+
+*The agent-flow menu (Option+F) orchestrating work across PLAN, WORK, and REVIEW panes*
 
 ## Features
 

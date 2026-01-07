@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Tmux Toolkit Screenshot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .terminal {
+            background: #0d1117;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .terminal-header {
+            background: #21262d;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-button {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-button.close { background: #ff5f56; }
+        .terminal-button.minimize { background: #ffbd2e; }
+        .terminal-button.maximize { background: #27c93f; }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            color: #8b949e;
+            font-size: 13px;
+        }
+
+        .terminal-content {
+            display: flex;
+            height: 600px;
+        }
+
+        .pane {
+            flex: 1;
+            padding: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .pane:not(:last-child) {
+            border-right: 1px solid #30363d;
+        }
+
+        .pane-label {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #21262d;
+            color: #58a6ff;
+            font-size: 11px;
+            padding: 4px 8px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .pane-content {
+            margin-top: 24px;
+            color: #c9d1d9;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .prompt {
+            color: #7ee787;
+        }
+
+        .command {
+            color: #ff7b72;
+        }
+
+        .heading {
+            color: #d2a8ff;
+            font-weight: bold;
+        }
+
+        .check {
+            color: #7ee787;
+        }
+
+        .pending {
+            color: #8b949e;
+        }
+
+        .code-keyword {
+            color: #ff7b72;
+        }
+
+        .code-func {
+            color: #d2a8ff;
+        }
+
+        .code-string {
+            color: #a5d6ff;
+        }
+
+        .code-comment {
+            color: #8b949e;
+        }
+
+        .code-type {
+            color: #ffa657;
+        }
+
+        /* Menu overlay */
+        .menu-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            box-shadow: 0 16px 32px rgba(0,0,0,0.4);
+            min-width: 280px;
+            z-index: 100;
+        }
+
+        .menu-header {
+            background: #21262d;
+            color: #58a6ff;
+            padding: 10px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            border-bottom: 1px solid #30363d;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .menu-items {
+            padding: 8px 0;
+        }
+
+        .menu-item {
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            color: #c9d1d9;
+            font-size: 13px;
+        }
+
+        .menu-item:hover {
+            background: #21262d;
+        }
+
+        .menu-item.selected {
+            background: #1f6feb;
+            color: white;
+        }
+
+        .menu-item .shortcut {
+            color: #8b949e;
+            font-size: 11px;
+        }
+
+        .menu-item.selected .shortcut {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .menu-separator {
+            height: 1px;
+            background: #30363d;
+            margin: 8px 0;
+        }
+
+        .middle-pane {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div class="terminal-header">
+            <div class="terminal-button close"></div>
+            <div class="terminal-button minimize"></div>
+            <div class="terminal-button maximize"></div>
+            <div class="terminal-title">demo-screenshot - agents - tmux</div>
+        </div>
+        <div class="terminal-content">
+            <!-- PLAN Pane -->
+            <div class="pane">
+                <div class="pane-label">PLAN: auth-feature</div>
+                <div class="pane-content"><span class="prompt">$</span> <span class="command">claude</span>
+
+<span class="heading">&gt; Planning authentication feature...</span>
+
+Research complete. Here is the plan:
+
+<span class="heading">## Implementation Tasks</span>
+
+<span class="check">[x]</span> Research OAuth2 best practices
+<span class="check">[x]</span> Design token refresh flow
+<span class="pending">[ ]</span> Create auth middleware
+<span class="pending">[ ]</span> Add session management
+<span class="pending">[ ]</span> Write integration tests
+
+Ready for implementation phase.</div>
+            </div>
+
+            <!-- WORK Pane -->
+            <div class="pane middle-pane">
+                <div class="pane-label">WORK: auth-feature</div>
+                <div class="pane-content"><span class="prompt">$</span> <span class="command">claude</span>
+
+<span class="heading">&gt; Implementing auth middleware...</span>
+
+Created: src/middleware/auth.ts
+
+<span class="code-keyword">export const</span> <span class="code-func">authMiddleware</span> = <span class="code-keyword">async</span> (
+  req: <span class="code-type">Request</span>,
+  res: <span class="code-type">Response</span>,
+  next: <span class="code-type">NextFunction</span>
+) =&gt; {
+  <span class="code-keyword">const</span> token = req.headers.authorization;
+  <span class="code-keyword">if</span> (!token) <span class="code-keyword">return</span> res.status(<span class="code-string">401</span>);
+  <span class="code-comment">// Verify JWT token</span>
+  <span class="code-keyword">const</span> user = <span class="code-keyword">await</span> <span class="code-func">verifyToken</span>(token);
+  req.user = user;
+  <span class="code-func">next</span>();
+};</div>
+
+                <!-- Menu Overlay -->
+                <div class="menu-overlay">
+                    <div class="menu-header">Agent Flow [WORKING]</div>
+                    <div class="menu-items">
+                        <div class="menu-item">
+                            <span>Plan</span>
+                            <span class="shortcut">Focus PLAN pane</span>
+                        </div>
+                        <div class="menu-item selected">
+                            <span>Work</span>
+                            <span class="shortcut">Focus WORK pane</span>
+                        </div>
+                        <div class="menu-item">
+                            <span>Review</span>
+                            <span class="shortcut">Focus REVIEW pane</span>
+                        </div>
+                        <div class="menu-item">
+                            <span>Compound</span>
+                            <span class="shortcut">Record learnings</span>
+                        </div>
+                        <div class="menu-separator"></div>
+                        <div class="menu-item">
+                            <span>Handoff</span>
+                            <span class="shortcut">Transfer context</span>
+                        </div>
+                        <div class="menu-item">
+                            <span>Status</span>
+                            <span class="shortcut">Show dashboard</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REVIEW Pane -->
+            <div class="pane">
+                <div class="pane-label">REVIEW: auth-feature</div>
+                <div class="pane-content"><span class="prompt">$</span> <span class="command">claude</span>
+
+<span class="heading">&gt; Running tests and code review...</span>
+
+<span class="heading">## Test Results</span>
+<span class="check">✓</span> auth.middleware.test.ts (12 tests)
+<span class="check">✓</span> session.test.ts (8 tests)
+<span class="check">✓</span> integration/auth.test.ts (5 tests)
+
+All 25 tests passed
+
+<span class="heading">## Lint Check</span>
+<span class="check">✓</span> No ESLint errors
+<span class="check">✓</span> TypeScript compilation successful
+
+Ready for PR creation.</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

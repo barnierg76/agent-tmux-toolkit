@@ -147,23 +147,6 @@ Ship it.
 ---
 
 # ═══ VIBESHIP ═══
-🧠 Mind: Init
-pip install vibeship-mind && python -m mind init
-
-Then tell Claude: "Add Mind MCP server to my config. Use command 'python' with args ['-m', 'mind', 'mcp']"
----
-🧠 Mind: Recall
-Use mind_recall() to load my session context and previous learnings.
----
-🧠 Mind: Log Learning
-Use mind_log() to record this to my persistent memory for future sessions.
----
-🧠 Mind: Set Reminder
-Use mind_remind() to set a reminder - can be time-based ("tomorrow", "in 3 days") or context-triggered ("when I mention auth").
----
-🧠 Mind: Check Edges
-Use mind_edges() to check for potential gotchas before we start coding this feature.
----
 🚀 Spawner: Install
 claude mcp add spawner -- npx -y mcp-remote https://mcp.vibeship.co
 

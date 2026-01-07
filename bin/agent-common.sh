@@ -62,6 +62,41 @@ get_session_name() {
     echo "$name"
 }
 
+# Create standard 3-pane agent session (PLAN | WORK | REVIEW)
+# Usage: create_agent_session <session_name> <working_dir> [task_id]
+# Returns: 0 on success, 1 on failure
+create_agent_session() {
+    local session_name="$1"
+    local working_dir="$2"
+    local task_id="${3:-Ready}"
+
+    # Validate inputs
+    validate_name "$session_name" "session name" || return 1
+    [[ -d "$working_dir" ]] || { echo -e "${RED}Directory not found: $working_dir${NC}" >&2; return 1; }
+
+    # Create session with 3 panes (batched for performance)
+    tmux new-session -d -s "$session_name" -n "agents" -c "$working_dir" \; \
+        split-window -h -c "$working_dir" \; \
+        split-window -h -c "$working_dir" \; \
+        select-layout even-horizontal
+
+    # Get pane IDs
+    local pane_ids
+    mapfile -t pane_ids < <(tmux list-panes -t "$session_name" -F "#{pane_id}")
+
+    # Set roles and titles
+    tmux set-option -p -t "${pane_ids[0]}" @role "PLAN"
+    tmux set-option -p -t "${pane_ids[1]}" @role "WORK"
+    tmux set-option -p -t "${pane_ids[2]}" @role "REVIEW"
+
+    tmux select-pane -t "${pane_ids[0]}" -T "$task_id"
+    tmux select-pane -t "${pane_ids[1]}" -T "$task_id"
+    tmux select-pane -t "${pane_ids[2]}" -T "$task_id"
+
+    # Focus on PLAN pane
+    tmux select-pane -t "${pane_ids[0]}"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLIPBOARD UTILITIES
 # ═══════════════════════════════════════════════════════════════════════════════

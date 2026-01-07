@@ -27,7 +27,8 @@ COMMANDS:
     focus, f <n|name>   Focus on pane by index or name
     copy, cp [n|name]   Copy pane content to clipboard (interactive if no target)
     copy-full, cpf [n|name] Copy full scrollback history to clipboard
-    paste, p [n|name]   Paste clipboard content to pane (interactive if no target)
+    paste, p [n|name] [--yes] Paste content to pane (stdin or clipboard)
+                            --yes, -y: Skip confirmation for multi-line
     layout, l           Rebalance pane layout (even-horizontal)
     list, ls            List all tmux sessions
 
@@ -42,6 +43,7 @@ EXAMPLES:
     agent-manage copy 0              # Copy pane 0 content to clipboard
     agent-manage copy-full WORK      # Copy full history of WORK pane
     agent-manage paste 1             # Paste clipboard to pane 1
+    echo "cmd" | agent-manage paste 0 -y  # Pipe content to pane
     agent-manage kill agents         # Kill 'agents' session
     agent-manage kill all            # Kill ALL tmux sessions
 
@@ -304,14 +306,17 @@ cmd_copy() {
         done <<< "$panes"
 
         local header prompt preview_cmd
+        # Escape session name for safe use in fzf preview command
+        local safe_session
+        safe_session=$(printf '%q' "$SESSION_NAME")
         if $full_history; then
             header="Copy FULL scrollback (? help, ESC quit)"
             prompt="Select pane to copy (full history) > "
-            preview_cmd="tmux capture-pane -p -S - -t '$SESSION_NAME.{1}' 2>/dev/null | tail -30"
+            preview_cmd="tmux capture-pane -p -S - -t ${safe_session}.{1} 2>/dev/null | tail -30"
         else
             header="Copy pane content (? help, ESC quit)"
             prompt="Select pane to copy > "
-            preview_cmd="tmux capture-pane -p -S -20 -t '$SESSION_NAME.{1}' 2>/dev/null | head -20"
+            preview_cmd="tmux capture-pane -p -S -20 -t ${safe_session}.{1} 2>/dev/null | head -20"
         fi
 
         local selected
@@ -353,19 +358,36 @@ cmd_copy() {
     echo -e "${GREEN}Copied $line_count lines$suffix to clipboard${NC}"
 }
 
-# Paste clipboard content to pane
+# Paste content to pane (from stdin or clipboard)
+# Usage: agent-manage paste [pane] [--yes|-y]
+#        echo "content" | agent-manage paste 0 --yes
 cmd_paste() {
     check_session
 
-    local target="$1"
+    local target=""
     local pane_idx
+    local skip_confirm=false
 
-    # Get clipboard content first
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --yes|-y) skip_confirm=true; shift ;;
+            *) target="$1"; shift ;;
+        esac
+    done
+
+    # Get content: stdin first, then clipboard
     local content
-    content=$(paste_from_clipboard 2>/dev/null)
+    if [ ! -t 0 ]; then
+        # stdin is not a terminal - read from pipe
+        content=$(cat)
+    else
+        # stdin is a terminal - use clipboard
+        content=$(paste_from_clipboard 2>/dev/null)
+    fi
 
     if [ -z "$content" ]; then
-        echo -e "${YELLOW}Clipboard is empty (nothing to paste)${NC}"
+        echo -e "${YELLOW}No content (stdin empty and clipboard empty)${NC}"
         return 0
     fi
 
@@ -401,7 +423,7 @@ cmd_paste() {
             display+="$idx: $title ($cmd)"$'\n'
         done <<< "$panes"
 
-        # Show preview of clipboard content
+        # Show preview of content
         local preview_content
         preview_content=$(echo "$content" | head -20)
 
@@ -411,8 +433,8 @@ cmd_paste() {
             --layout=reverse \
             --border=rounded \
             --prompt="Select pane to paste into > " \
-            --header="Paste clipboard (? help, ESC quit)" \
-            --preview="echo 'Clipboard content:'; echo '─────────────────'; echo '$preview_content'" \
+            --header="Paste content (? help, ESC quit)" \
+            --preview="echo 'Content to paste:'; echo '─────────────────'; echo '$preview_content'" \
             --preview-window=right:50%:wrap \
             --bind='?:execute(~/.local/bin/agent-help)')
 
@@ -424,8 +446,8 @@ cmd_paste() {
     local line_count
     line_count=$(echo "$content" | wc -l | tr -d ' ')
 
-    # Confirm before pasting multi-line content
-    if [ "$line_count" -gt 1 ]; then
+    # Confirm before pasting multi-line content (unless --yes)
+    if [ "$line_count" -gt 1 ] && [ "$skip_confirm" = false ]; then
         echo -e "${YELLOW}About to paste $line_count lines to pane $pane_idx${NC}"
         echo -e "${YELLOW}First line: $(echo "$content" | head -1 | cut -c1-60)...${NC}"
         read -p "Continue? [y/N]: " confirm

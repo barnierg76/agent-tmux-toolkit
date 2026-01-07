@@ -27,7 +27,7 @@ mkdir -p ~/.config/agent-snippets
 echo "Installing scripts to ~/.local/bin/"
 
 # Backup existing scripts
-for script in agent-common agent-session agent-manage agent-worktree agent-delegate agent-status agent-flow agent-flow-state agent-flow-prompt agent-handoff agent-help snippet-picker snippet-edit; do
+for script in agent-common agent-session agent-manage agent-worktree agent-delegate agent-status agent-flow agent-flow-state agent-flow-prompt agent-handoff agent-help snippet-picker snippet-edit snippet-send; do
     backup_if_exists ~/.local/bin/$script
 done
 
@@ -42,6 +42,7 @@ cp bin/agent-delegate ~/.local/bin/
 cp bin/agent-status ~/.local/bin/
 cp bin/snippet-picker ~/.local/bin/
 cp bin/snippet-edit ~/.local/bin/
+cp bin/snippet-send ~/.local/bin/
 
 # Compound workflow scripts
 cp bin/agent-flow ~/.local/bin/
@@ -66,6 +67,7 @@ chmod +x ~/.local/bin/agent-handoff
 chmod +x ~/.local/bin/agent-help
 chmod +x ~/.local/bin/snippet-picker
 chmod +x ~/.local/bin/snippet-edit
+chmod +x ~/.local/bin/snippet-send
 
 # Create workflow state cache directory
 mkdir -p ~/.cache/agent-tmux

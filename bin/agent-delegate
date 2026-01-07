@@ -113,19 +113,7 @@ for task in "${TASKS[@]}"; do
         fi
 
         # Create session in worktree (detached)
-        tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_DIR"
-        tmux split-window -h -t "$SESSION_NAME" -c "$WORKTREE_DIR"
-        tmux split-window -h -t "$SESSION_NAME" -c "$WORKTREE_DIR"
-        tmux select-layout -t "$SESSION_NAME" even-horizontal
-
-        # Set pane roles and initial titles
-        PANE_IDS=($(tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}"))
-        tmux set-option -p -t "${PANE_IDS[0]}" @role "PLAN"
-        tmux set-option -p -t "${PANE_IDS[1]}" @role "WORK"
-        tmux set-option -p -t "${PANE_IDS[2]}" @role "REVIEW"
-        tmux select-pane -t "${PANE_IDS[0]}" -T "$task"
-        tmux select-pane -t "${PANE_IDS[1]}" -T "$task"
-        tmux select-pane -t "${PANE_IDS[2]}" -T "$task"
+        create_agent_session "$SESSION_NAME" "$WORKTREE_DIR" "$task"
 
         CREATED+=("$task")
     else
@@ -137,19 +125,7 @@ for task in "${TASKS[@]}"; do
             continue
         fi
 
-        tmux new-session -d -s "$SESSION_NAME" -c "$(pwd)"
-        tmux split-window -h -t "$SESSION_NAME" -c "$(pwd)"
-        tmux split-window -h -t "$SESSION_NAME" -c "$(pwd)"
-        tmux select-layout -t "$SESSION_NAME" even-horizontal
-
-        # Set pane roles and initial titles
-        PANE_IDS=($(tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}"))
-        tmux set-option -p -t "${PANE_IDS[0]}" @role "PLAN"
-        tmux set-option -p -t "${PANE_IDS[1]}" @role "WORK"
-        tmux set-option -p -t "${PANE_IDS[2]}" @role "REVIEW"
-        tmux select-pane -t "${PANE_IDS[0]}" -T "$task"
-        tmux select-pane -t "${PANE_IDS[1]}" -T "$task"
-        tmux select-pane -t "${PANE_IDS[2]}" -T "$task"
+        create_agent_session "$SESSION_NAME" "$(pwd)" "$task"
 
         CREATED+=("$task")
     fi

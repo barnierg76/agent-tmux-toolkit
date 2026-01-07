@@ -1,5 +1,6 @@
 #!/bin/bash
-# snippet-picker - Quick snippet selection for Claude Code agents
+set -e
+# snippet-picker - Quick snippet selection for AI agents
 # Usage: Called from tmux popup, sends selected snippet to active pane
 # Supports folders via # ═══ FOLDER ═══ headers in snippets file
 # Pane-aware: Shows relevant folders first based on current pane (PLAN/WORK/REVIEW)
@@ -167,6 +168,6 @@ while true; do
     text=$(echo "$selected" | cut -f2)
     text=$(echo "$text" | sed 's/\\n/\n/g')
 
-    tmux send-keys -t "$TARGET_PANE" "$text"
+    tmux send-keys -t "$TARGET_PANE" -l "$text"
     exit 0
 done

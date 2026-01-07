@@ -1,0 +1,179 @@
+#!/bin/bash
+# snippet-send - Send snippets programmatically (agent-friendly)
+# Usage: snippet-send <label> [--to <pane>] [--list] [--format json]
+set -e
+
+source "$(dirname "$0")/agent-common.sh"
+
+SNIPPETS_FILE="${HOME}/.config/agent-snippets/snippets.txt"
+
+show_help() {
+    cat << 'EOF'
+snippet-send - Send snippets to panes (agent-friendly)
+
+USAGE:
+    snippet-send <label>                 Send snippet to current pane
+    snippet-send <label> --to <pane>     Send to specific pane
+    snippet-send --list                  List all snippets
+    snippet-send --list --folder <name>  List snippets in folder
+    snippet-send --get <label>           Print content without sending
+    snippet-send --list --format json    JSON output
+
+OPTIONS:
+    --to, -t <pane>     Target pane (index or name)
+    --list, -l          List available snippets
+    --folder, -f <name> Filter by folder
+    --get, -g <label>   Print content only
+    --format <fmt>      Output format: text, json, tsv
+    --help, -h          Show this help
+
+EXAMPLES:
+    snippet-send "Commit"                # Send to current pane
+    snippet-send "Plan" --to PLAN        # Send to PLAN pane
+    snippet-send --list --format json    # List as JSON
+EOF
+}
+
+# Parse snippets file (reuse parsing logic from snippet-picker)
+parse_snippets() {
+    [[ ! -f "$SNIPPETS_FILE" ]] && return 0
+
+    awk '
+        BEGIN { folder="General"; label=""; content="" }
+        /^# ═══.*═══/ {
+            folder = $0
+            sub(/^# ═══ /, "", folder)
+            sub(/ ═══.*$/, "", folder)
+            next
+        }
+        /^#/ { next }
+        /^[[:space:]]*$/ { next }
+        /^---/ {
+            if (label != "" && content != "") {
+                gsub(/\n/, "\\n", content)
+                print folder "\t" label "\t" content
+            }
+            label = ""
+            content = ""
+            next
+        }
+        label == "" { label = $0; next }
+        {
+            if (content == "") content = $0
+            else content = content "\n" $0
+        }
+        END {
+            if (label != "" && content != "") {
+                gsub(/\n/, "\\n", content)
+                print folder "\t" label "\t" content
+            }
+        }
+    ' "$SNIPPETS_FILE"
+}
+
+list_snippets() {
+    local folder_filter="$1"
+    local format="$2"
+
+    local snippets
+    snippets=$(parse_snippets)
+
+    if [[ -z "$snippets" ]]; then
+        echo "No snippets found in $SNIPPETS_FILE" >&2
+        return 1
+    fi
+
+    if [[ -n "$folder_filter" ]]; then
+        snippets=$(echo "$snippets" | grep "^${folder_filter}	" || true)
+    fi
+
+    case "$format" in
+        json)
+            echo "["
+            local first=true
+            while IFS=$'\t' read -r folder label _; do
+                [[ -z "$folder" ]] && continue
+                $first || echo ","
+                first=false
+                printf '  {"folder": "%s", "label": "%s"}' "$folder" "$label"
+            done <<< "$snippets"
+            echo ""
+            echo "]"
+            ;;
+        tsv)
+            echo -e "folder\tlabel"
+            echo "$snippets" | cut -f1,2
+            ;;
+        *)
+            echo "$snippets" | awk -F'\t' '{printf "%s/%s\n", $1, $2}'
+            ;;
+    esac
+}
+
+get_snippet() {
+    local label="$1"
+    local snippets
+    snippets=$(parse_snippets)
+
+    local snippet
+    snippet=$(echo "$snippets" | grep "	${label}	" | head -1)
+
+    if [[ -z "$snippet" ]]; then
+        echo "ERROR: Snippet '$label' not found" >&2
+        return 1
+    fi
+
+    echo "$snippet" | cut -f3 | sed 's/\\n/\n/g'
+}
+
+send_snippet() {
+    local label="$1"
+    local target_pane="${2:-}"
+
+    local content
+    content=$(get_snippet "$label") || return 1
+
+    if [[ -z "$target_pane" ]]; then
+        target_pane=$(tmux display-message -p '#{pane_id}' 2>/dev/null)
+        if [[ -z "$target_pane" ]]; then
+            echo "ERROR: Not in tmux session and no target pane specified" >&2
+            return 1
+        fi
+    fi
+
+    tmux send-keys -t "$target_pane" -l "$content"
+    echo "Sent '$label' to $target_pane"
+}
+
+# Main argument parsing
+main() {
+    local action="send"
+    local label=""
+    local target_pane=""
+    local folder=""
+    local format="text"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --list|-l) action="list"; shift ;;
+            --get|-g) action="get"; label="$2"; shift 2 ;;
+            --to|-t) target_pane="$2"; shift 2 ;;
+            --folder|-f) folder="$2"; shift 2 ;;
+            --format) format="$2"; shift 2 ;;
+            --help|-h) show_help; exit 0 ;;
+            -*) echo "Unknown option: $1" >&2; exit 1 ;;
+            *) label="$1"; shift ;;
+        esac
+    done
+
+    case "$action" in
+        list) list_snippets "$folder" "$format" ;;
+        get) get_snippet "$label" ;;
+        send)
+            [[ -z "$label" ]] && { show_help; exit 1; }
+            send_snippet "$label" "$target_pane"
+            ;;
+    esac
+}
+
+main "$@"
